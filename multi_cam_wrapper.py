@@ -30,7 +30,7 @@ camera_names = [
     ['19472089', 'cam-B']
 ]
  
-save_location = "C:\\Users\\William\\Documents\\Data\\dan_test_3"
+save_location = "/home/oconnorlab/Data/cameras/"
 save_prefix = "dan"
 GRAB_TIMEOUT = 100 # (ms) length of time before cam.GrabNextImage() will timeout and stop hanging
 NUM_THREADS_PER_CAM = 6 # The number of saving threads per camera; each system has different best value
