@@ -9,6 +9,8 @@ VIDEO_FPS = 10 # What fps to save the video file as
 PIXEL_FORMAT = PySpin.PixelFormat_Mono8 # What color format to convert from bayer; must match above
 FILETYPE = ".tiff" # 
 QUALITY_LEVEL = 75 # 0 is worst; 95 is best; 100 disbles jpeg compression. Only matters if save_format_extension is jpg.
+MIN_BATCH_INTERVAL = 3  # (s) If time between this and previous image is more than this, a new directory is created (this separates images into directories for each new trial)
+
 
 # Assign custom names to cameras based on their serial numbers. Comment out to ignore that camera.
 CAMERA_NAMES_DICT = {
