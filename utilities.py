@@ -4,16 +4,17 @@ import threading
 import queue
 import time
 from PIL import Image
-from multi_cam_wrapper import camera_params, camera_names, save_location, save_prefix, GRAB_TIMEOUT, NUM_THREADS_PER_CAM, fps, save_format, save_format_extension, quality_level
+from parameters import CAMERA_PARAMS, CAMERA_NAMES_DICT, SAVE_LOCATION,     SAVE_PREFIX, GRAB_TIMEOUT, NUM_THREADS_PER_CAM, VIDEO_FPS, FILETYPE, QUALITY_LEVEL
 import sys
 import cv2
 import natsort
+from pathlib import Path
 
 # Two flags used globally
 keep_acquiring = True
 saving_done = False
 
-def set_up_cameras():
+def set_up_cameras(camera_names):
     """
     Set up the system object and cameras.
     """
@@ -23,9 +24,18 @@ def set_up_cameras():
 
     cam_list = system.GetCameras()
 
-    num_cameras = cam_list.GetSize()
+    # Remove cameras from cam_list if they are not in camera_names
+    serial_numbers = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
+    for serial_number in serial_numbers:
+        if serial_number not in camera_names.keys():
+            cam_list.RemoveBySerial(serial_number)
 
-    print('Number of cameras detected: {0}'.format(num_cameras))
+    num_cameras = cam_list.GetSize()
+    print("Cameras to be used: ", num_cameras)
+    for cam in cam_list:
+        serial_number = cam.TLDevice.DeviceSerialNumber.GetValue()
+        print(serial_number, camera_names[serial_number])
+
 
     if num_cameras == 0:
         print("Since no cameras were detected, cam_list is being cleared and the system is being released.")
@@ -45,7 +55,7 @@ def set_camera_params(cam_list):
         cam.Init()
 
         # Set parameters from wrapper file
-        for [param, value] in camera_params:
+        for [param, value] in CAMERA_PARAMS:
 
             # To handle nested attributes, split param strings by period. Basically, this will help the program handle updating parameters like "TLStream.StreamBufferCountMode"
             attr_list = param.split('.')
@@ -64,7 +74,7 @@ def set_camera_params(cam_list):
                 result = False
 
         # Assign DeviceUserID based on serial number
-        for [serial, name] in camera_names:
+        for [serial, name] in CAMERA_NAMES_DICT.items():
 
             if serial == cam.DeviceID():
                 cam.DeviceUserID.SetValue(name)
@@ -135,26 +145,32 @@ def save_images(cam_name, image_queue, save_location):
             break
 
         frame_id = str(image.GetFrameID())
-        filename = save_prefix + '-' + cam_name + '-' + frame_id
-        filename += save_format_extension
+        frame_id = frame_id.zfill(9)    # pad frame id with zeros to order correctly
+        filename = SAVE_PREFIX + '-' + cam_name + '-' + frame_id +FILETYPE
         filename = os.path.join(save_location, filename)
         
         # Spinnaker save - slow
         # image.Save(filename)  # uncomment to use Spinnaker save
 
         # Convert to RGB and save - moderately slow
-        image_converted = image.Convert(save_format)
+        # image_converted = image.Convert(save_format)
 
-        if save_format_extension == ".jpg":
-            Image.fromarray(image_converted.GetNDArray()).save(filename, quality=quality_level)
-        else:
-            Image.fromarray(image_converted.GetNDArray()).save(filename)
+        # if save_format_extension == ".jpg":
+        #     Image.fromarray(image.GetNDArray()).save(filename, quality=quality_level)
+        # else:
+        #     Image.fromarray(image.GetNDArray()).save(filename)
 
         # Leave as Bayer and save
         #Image.fromarray(image.GetNDArray()).save(filename)
 
-        # Save as raw
-        #image.GetNDArray().tofile(filename)  #  uncomment to save as raw
+        # Save image
+        output = image.GetNDArray()
+        img = Image.fromarray(output)
+        img.save(filename)
+
+        # output.save(filename)  #  uncomment to save as raw
+
+        # image.GetNDArray().tofile(filename)  #  uncomment to save as raw
         #print(threading.currentThread().getName()+" saved image:"+filename, end="\r")
         #print('[%s] image saved at path: %s' % (serial_number, filename))
 
@@ -184,9 +200,14 @@ def record_high_bandwidth_video(cam_list):
 
         for i, cam in enumerate(cam_list):
             image_queues.append(queue.Queue())
-            for j in range(NUM_THREADS_PER_CAM):
+
+            # Create directory for each camera
+            cam_subdir = Path(SAVE_LOCATION, cam.DeviceUserID())
+            cam_subdir.mkdir(parents=True, exist_ok=True)
+
+            for _ in range(NUM_THREADS_PER_CAM):
                 
-                saving_thread = threading.Thread(target=save_images, args=(cam.DeviceUserID(), image_queues[-1], save_location))
+                saving_thread = threading.Thread(target=save_images, args=(cam.DeviceUserID(), image_queues[-1], cam_subdir))
                 saving_thread.start()
                 saving_threads.append(saving_thread)
 
@@ -260,42 +281,42 @@ def release_cameras(cam_list, system):
     system.ReleaseInstance()
     print("Cameras and system released.\n")
 
-def convert_to_video(image_folder):
+def convert_to_video():
     """ 
     Converts a folder of images into a video avi file. Use the wrapper file to adjust the fps.
     """
-    should_convert = input("\nWrite YES to convert images to video now: ")
-    if should_convert != "YES":
-        pass
 
-    else:
-            
-        for [_, cam_ID]  in camera_names:
-            video_name = save_prefix+'-'+cam_ID+'.avi'
+        
+    for [_, cam_ID]  in CAMERA_NAMES_DICT.items():
+        video_name = SAVE_PREFIX+'-'+cam_ID+'.avi'
 
-            # Sort images using natsort; otherwise image-1 grouped with image-10
-            sorted_image_names = natsort.natsorted(os.listdir(image_folder))
-            images = [img for img in sorted_image_names if img.endswith(save_format_extension) & img.startswith(save_prefix+'-'+cam_ID)]
-            
-            if images == []:
-                print("No images found for "+cam_ID+" of type "+save_format_extension+" so no video was created.\n")
-                continue
-            else:
-                print("Converting images to video format for camera " + cam_ID + ".\n")
+        cam_subdir = Path(SAVE_LOCATION, cam_ID)
+        img_list = list(cam_subdir.glob('*'+FILETYPE))
 
-            frame = cv2.imread(os.path.join(image_folder, images[0]))
-            height, width, layers = frame.shape
-            fourcc = cv2.VideoWriter_fourcc('M','J','P','G') # TODO: suboptimal because it introduces second round of compression.
-            video = cv2.VideoWriter(video_name, fourcc, fps, (width,height), True)
+        # Sort images using natsort; otherwise image-1 grouped with image-10
+        # sorted_image_names = natsort.natsorted(os.listdir(cam_subdir))
+        # images = [img for img in sorted_image_names if img.endswith(FILETYPE) & img.startswith(SAVE_PREFIX+'-'+cam_ID)]
+        
+        if len(img_list) == 0:
+            print("No images found for "+cam_ID+" of type "+FILETYPE+" so no video was created.\n")
+            continue
+        else:
+            print("Converting images to video format for camera " + cam_ID + ".\n")
+            cmd = "ffmpeg -framerate {} -pattern_type glob -i '{}/*{}' -vf format=yuv420p {}/{}.mp4".format(VIDEO_FPS,cam_subdir, FILETYPE, cam_subdir, video_name)
+            os.system(cmd)
+        # frame = cv2.imread(os.path.join(cam_subdir, images[0]))
+        # height, width, layers = frame.shape
+        # fourcc = cv2.VideoWriter_fourcc('M','J','P','G') # TODO: suboptimal because it introduces second round of compression.
+        # video = cv2.VideoWriter(video_name, fourcc, VIDEO_FPS, (width,height), True)
 
-            for image in images:
-                print(image)
-                video.write(cv2.imread(os.path.join(image_folder, image)))
+        # for image in images:
+        #     print(image)
+        #     video.write(cv2.imread(os.path.join(cam_subdir, image)))
 
-            cv2.destroyAllWindows()
-            video.release()
+        # cv2.destroyAllWindows()
+        # video.release()
 
-            print("Video saved as "+video_name+" at "+str(fps)+"fps.\n")
+        print("Video saved as "+video_name+" at "+str(VIDEO_FPS)+"fps.\n")
     
     #TODO: Put in a check on whether the input FPS is plausible given the timestamps of the images.
     
@@ -321,176 +342,3 @@ def rename_images(image_folder, initial_prefix_list, target_prefix_list, save_fo
             new_prefix = target_prefix_list[idx]
             new_name = new_prefix + image_number + save_format_extension
             os.rename(os.path.join(image_folder,image_name), os.path.join(image_folder,new_name))
-
-
-#################################################
-### Not used but potentially useful functions ###
-#################################################
-
-# def print_device_info(nodemap, cam_num):
-#     """
-#     This function prints the device information of the camera from the transport
-#     layer; please see NodeMapInfo example for more in-depth comments on printing
-#     device information from the nodemap.
-
-#     :param nodemap: Transport layer device nodemap.
-#     :param cam_num: Camera number.
-#     :type nodemap: INodeMap
-#     :type cam_num: int
-#     :returns: True if successful, False otherwise.
-#     :rtype: bool
-#     """
-
-#     print('Printing device information for camera %d... \n' % cam_num)
-
-#     try:
-#         result = True
-#         node_device_information = PySpin.CCategoryPtr(nodemap.GetNode('DeviceInformation'))
-
-#         if PySpin.IsAvailable(node_device_information) and PySpin.IsReadable(node_device_information):
-#             features = node_device_information.GetFeatures()
-#             for feature in features:
-#                 node_feature = PySpin.CValuePtr(feature)
-#                 print('%s: %s' % (node_feature.GetName(),
-#                                   node_feature.ToString() if PySpin.IsReadable(node_feature) else 'Node not readable'))
-
-#         else:
-#             print('Device control information not available.')
-#         print()
-
-#     except PySpin.SpinnakerException as ex:
-#         print('Error: %s' % ex)
-#         return False
-
-#     return result
-
-    
-# def have_write_access():
-#     """
-#     Quickly test if we have permission to write by opening a test_file.
-#     """
-
-#     try:
-#         test_file = open('test.txt', 'w+')
-#         result = True
-#         test_file.close()
-#         os.remove(test_file.name)
-#     except IOError:
-#         result = False
-
-#     return result
-
-# def run_multiple_cameras(cam_list):
-#     """
-#     This function acts as the body of the example.
-#     """
-#     try:
-#         result = True
-
-
-#         # Acquire images on all cameras
-#         result &= acquire_images(cam_list)
-
-#         # Deinitialize each camera
-#         #
-#         # *** NOTES ***
-#         # Again, each camera must be deinitialized separately by first
-#         # selecting the camera and then deinitializing it.
-#         for cam in cam_list:
-
-#             # Deinitialize camera
-#             cam.DeInit()
-
-#         # Release reference to camera
-#         # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
-#         # cleaned up when going out of scope.
-#         # The usage of del is preferred to assigning the variable to None.
-#         del cam
-
-#     except PySpin.SpinnakerException as ex:
-#         print('Error: %s' % ex)
-#         result = False
-
-#     return resultd
-
-# def acquire_images(cam_list):
-#     """
-#     This function acquires and saves images from each device.
-#     """
-
-#     try:
-#         result = True
-
-#         # Begin acquisition
-#         for i, cam in enumerate(cam_list):
-#             cam.BeginAcquisition()
-
-#             print('Camera %d started acquiring images...' % i)
-
-        
-#         # Keep track of device id's (don't look up each time)
-#         device_id_vec = [cam.DeviceID() for cam in cam_list]
-
-#         # Keep track of which # image each camera is taking
-#         image_number_vec = [0 for cam in cam_list] # TODO: I do not know if this would handle a dropped frame well.
-#         keep_acquiring = True
-
-#         while keep_acquiring is True:
-
-#             for i, cam in enumerate(cam_list):
-#                 try:
-#                     # Retrieve device serial number for filename
-#                     device_serial_number = device_id_vec[i]
-
-#                     # Print if buffer gets full
-#                     if cam.TransferQueueCurrentBlockCount() > 0:
-#                         print(("# of images in {0}'s buffer: {1}").format(device_serial_number,cam.TransferQueueCurrentBlockCount()))
-
-#                     # Grab the next image. 
-#                     # If an image is not made available before GRAB_TIMEOUT ms, restart the loop. This enables us to break out of the program and avoid getting hung when no more hardware triggers are occuring.
-#                     try:
-#                         #print('   Press ctrl + c to stop acquiring and safely deinitialize cameras.', end='\r')
-#                         image_result = cam.GetNextImage(GRAB_TIMEOUT)
-
-#                         # increment counter on first camera; otherwise gets out of count 
-
-#                     except:
-#                         #print('Camera {0} grabbed no image because no hardware trigger was given.'.format(i))
-#                         continue
-
-#                     if image_result.IsIncomplete():
-#                         print('Image incomplete with image status %d ... \n' % image_result.GetImageStatus())
-#                     else:
-#                         # Print image information
-#                         #print('Camera {0} grabbed image {1}'.format(i, image_number),' '*50)
-
-#                         # Convert image to mono 8
-#                         image_converted = image_result
-#                         #image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
-
-#                         # Create a unique filename
-#                         filename = 'Test-{0}-{1}.raw'.format(device_serial_number, image_number_vec[i]) 
-
-#                         # Save image
-#                         image_converted.Save(filename)
-#                         image_number_vec[i] += 1 
-#                         #print('Image saved at %s' % filename)
-
-#                     # Release image
-#                     image_result.Release()
-#                 except KeyboardInterrupt:
-#                     #print('KeyboardInterrupt used to stop camera acquisition. Shutting down...')
-#                     keep_acquiring = False
-#                 except PySpin.SpinnakerException as ex:
-#                     print('Error: %s' % ex)
-#                     result = False
-        
-#         # End acquisition for each camera
-#         for cam in cam_list:
-#             cam.EndAcquisition()
-
-#     except PySpin.SpinnakerException as ex:
-#         print('Error: %s' % ex)
-#         result = False
-
-#     return result

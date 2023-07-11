@@ -27,15 +27,3 @@ for i, old_path in enumerate(image_list):
     shutil.copy2(old_path, new_path)
 
 
-# Convert images to png
-tiff_list = list(save_dir.glob('*.tiff'))
-
-for i, old_path in enumerate(tiff_list):
-
-    # Load image
-    img = Image.open(old_path)
-
-    # Display image
-    img.show()
-
-    break
