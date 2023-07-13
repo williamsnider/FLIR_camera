@@ -51,13 +51,19 @@ conda install numpy matplotlib
 pip install spinnaker_python-3.1.0.79-cp38-cp38-linux_x86_64.whl
 ```
 
-## Misc
+#### Misc
 
 Needed to downgrade one package due to conda issue (https://github.com/conda/conda/issues/12287)
 
 ```
 conda install libffi==3.3
 ```
+#### Running the script
+```
+conda activate flir_venv
+python record_multiple_cameras.py
+```
+The script should save any images that are acquired. Images are grouped into timestamped directories based on MIN_BATCH_INTERVAL. 
 
 ### Useful snippets
 
