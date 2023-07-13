@@ -1,12 +1,16 @@
 # FLIR_camera
 
-Code to run FLIR cameras with hardware trigger
+Code to save images from multiple hardware-triggered FLIR Blackfly S cameras.
+
+## Description
+
+The `record_multiple_cameras.py` script interfaces with connected FLIR Blackfly cameras. It creates an aquisition thread for each camera, which grabs images from the cameras buffer. It creates several saving threads for each camera, which saves the images at a rate faster than they are acquired. In our experimental setup, this script is able to save images generated from multiple cameras at maximum resolution and framerate (~360MB/s per camera).
 
 ## How to use
 
 First, update parameters.py to indicate the correct serial numbers of your cameras. Additionally, change the camera parameters (exposure, gain, etc) according to the setup.
 
-## Installation Instructions for Ubuntu 20.04
+#### Installation Instructions for Ubuntu 20.04
 
 Set up conda environment with python 3.8
 
@@ -15,7 +19,7 @@ conda create --name flir_venv python=3.8
 conda install -c conda-forge opencv
 ```
 
-### Install Spinnaker SDK
+#### Install Spinnaker SDK
 
 https://www.flir.com/support-center/iis/machine-vision/downloads/spinnaker-sdk-download/spinnaker-sdk--download-files/
 
@@ -33,7 +37,7 @@ Follow the prompts. Be sure to allow 1000MB of buffer.
 
 Reboot the system.
 
-### Install spinnaker_python
+#### Install spinnaker_python
 
 (same link as above)
 
@@ -47,7 +51,7 @@ conda install numpy matplotlib
 pip install spinnaker_python-3.1.0.79-cp38-cp38-linux_x86_64.whl
 ```
 
-### Misc
+## Misc
 
 Needed to downgrade one package due to conda issue (https://github.com/conda/conda/issues/12287)
 
