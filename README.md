@@ -73,12 +73,12 @@ The script should save any images that are acquired. Images are grouped into tim
 
 #### Convert to mkv
 
-`ffmpeg -framerate 15.8 -pattern_type glob -i "*.png" -c:v copy output.mkv`
+`ffmpeg -framerate 10 -pattern_type glob -i "*.png" -c:v copy output.mkv`
 
 #### Convert to mp4 (compressed)
 
-`ffmpeg -framerate 15.8 -pattern_type glob -i "*.tiff" -vf format=yuv420p compressed.mp4`
+`ffmpeg -framerate 10 -pattern_type glob -i "*.tiff" -vf format=yuv420p compressed.mp4`
 
 #### Convert to mp4 (lossless)
 
-`ffmpeg -framerate 15.8 -pattern_type glob -i "*.tiff" -vf format=yuv420p -crf 0 output.mp4`
+`ffmpeg -framerate 10 -pattern_type glob -i "*.tiff" -vf format=yuv420p -crf 0 output.mp4`
