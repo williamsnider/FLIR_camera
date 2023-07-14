@@ -437,6 +437,7 @@ def get_remaining_space():
 
 
 def check_hard_drive_space():
+    """Prints warning if hard drive is low on space."""
     remaining_space_GB = get_remaining_space()
     print(f"Free space on the hard drive: {remaining_space_GB} GB")
 
