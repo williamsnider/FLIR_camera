@@ -1,4 +1,5 @@
 import PySpin
+import psutil
 import threading
 import queue
 import time
@@ -16,11 +17,14 @@ from parameters import (
     MIN_BATCH_INTERVAL,
 )
 
+
 ############################################
 ### Global variables used across threads ###
 ############################################
 
-KEEP_ACQUIRING_FLAG = True  # Flag for halting acquisition of images; triggered by ctrl+c
+KEEP_ACQUIRING_FLAG = (
+    True  # Flag for halting acquisition of images; triggered by ctrl+c
+)
 SAVING_DONE_FLAG = False  # Flag for signaling that all queued images have been saved
 
 # Images are grouped into batches. New batches are created when a new image is acquired more than MIN_BATCH_INTERVAL from the previous image.
@@ -29,7 +33,9 @@ curr_image_timestamp = time.time()  # Timestamp of current image
 batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime(
     "%Y-%m-%d_%H-%M-%S_%f"
 )
-lock = threading.Lock()  # Used to lock the batch_dir_name variable when it is being updated
+lock = (
+    threading.Lock()
+)  # Used to lock the batch_dir_name variable when it is being updated
 
 
 ################################
@@ -163,7 +169,10 @@ def acquire_images(cam, image_queue):
                     # To group the images into sequential batches (separate image sets spaced apart by MIN_BATCH_INTERVAL), we compare the timestamp of the current image to that of the previous image. If it exceeds MIN_BATCH_INTERVAL, update batch_dir_name (global variable) which will change the directory in which the images are saved. Using the lock is necessary so that only the first thread that detects the change will update the directory name for all threads.
                     with lock:
                         curr_image_timestamp = time.time()
-                        if curr_image_timestamp - prev_image_timestamp > MIN_BATCH_INTERVAL:
+                        if (
+                            curr_image_timestamp - prev_image_timestamp
+                            > MIN_BATCH_INTERVAL
+                        ):
                             # Update batch_dir_name to reflect the current timestamp
                             batch_dir_name = datetime.datetime.fromtimestamp(
                                 curr_image_timestamp
@@ -414,7 +423,31 @@ def record_high_bandwidth_video(cam_list, system):
         return
 
 
+########################
+### Useful functions ###
+########################
+
+
+def get_remaining_space():
+    """Returns the remaining space on the hard drive in GB."""
+    total_space = psutil.disk_usage("/").total
+    used_space = psutil.disk_usage("/").used
+    remaining_space = total_space - used_space
+    return round(remaining_space / 1e9, 2)
+
+
+def check_hard_drive_space():
+    remaining_space_GB = get_remaining_space()
+    print(f"Free space on the hard drive: {remaining_space_GB} GB")
+
+    if remaining_space_GB < 100:
+        print("WARNING: Less than 100 GB of free space on the hard drive.")
+
+
 if __name__ == "__main__":
+    # Check hard drive space
+    check_hard_drive_space()
+
     # Identify connected cameras
     cam_list, system, num_cameras = find_cameras()
 

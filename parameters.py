@@ -29,9 +29,9 @@ CAMERA_PARAMS = [
     ["DecimationHorizontal", 1],  # 1 is off, 2 is on
     ["DecimationVertical", 1],
     ["ExposureAuto", False],
-    ["ExposureTime", 250],  # us
+    ["ExposureTime", 500],  # us
     ["GainAuto", False],
-    ["Gain", 1],
+    ["Gain", 5],
     ["PixelFormat", PIXEL_FORMAT],  # Which Bayer filter the camera uses
     ["BalanceWhiteAuto", False],
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
