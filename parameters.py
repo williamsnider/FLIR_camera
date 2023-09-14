@@ -1,5 +1,5 @@
 import PySpin
-
+from copy import deepcopy
 
 SAVE_LOCATION = "/home/oconnorlab/Data/cameras/test_calibration"
 SAVE_PREFIX = (
@@ -21,17 +21,19 @@ MIN_BATCH_INTERVAL = 1  # (s) If time between this and previous image is more th
 
 
 # Assign custom names to cameras based on their serial numbers. Comment out to ignore that camera.
-CAMERA_NAMES_DICT = {"19472072": "cam-A", "19472089": "cam-B"}
+
+CAMERA_NAMES_DICT_COLOR = {"19472072": "cam-A", "19472089": "cam-B"}
+CAMERA_NAMES_DICT_MONO = {"23398259": "cam-C", "23398260": "cam-D", "23398261": "cam-E", "23428985": "cam-F",}
 
 # According to the API, trigger mode needs to be turned off for other parameters (like TriggerSource) to be changed. For this reason, the order of the items in this list matters, and some parameters like TriggerMode appear twice. Obviously, the last value is the one we want.
-CAMERA_PARAMS = [
+CAMERA_PARAMS_COLOR = [
     ["AcquisitionMode", PySpin.AcquisitionMode_Continuous],
     ["DecimationHorizontal", 1],  # 1 is off, 2 is on
     ["DecimationVertical", 1],
     ["ExposureAuto", False],
-    ["ExposureTime", 500],  # us
+    ["ExposureTime", 1000],  # us
     ["GainAuto", False],
-    ["Gain", 5],
+    ["Gain", 10],
     ["PixelFormat", PIXEL_FORMAT],  # Which Bayer filter the camera uses
     ["BalanceWhiteAuto", False],
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
@@ -46,3 +48,8 @@ CAMERA_PARAMS = [
     ["TriggerDelay", 32],
     ["TriggerMode", True],
 ]
+
+
+CAMERA_PARAMS_MONO = deepcopy(CAMERA_PARAMS_COLOR)
+CAMERA_PARAMS_MONO[7][1] = PySpin.PixelFormat_Mono8
+CAMERA_PARAMS_MONO.remove(["BalanceWhiteAuto", False])

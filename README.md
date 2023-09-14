@@ -58,12 +58,15 @@ Needed to downgrade one package due to conda issue (https://github.com/conda/con
 ```
 conda install libffi==3.3
 ```
+
 #### Running the script
+
 ```
 conda activate flir_venv
 python record_multiple_cameras.py
 ```
-The script should save any images that are acquired. Images are grouped into timestamped directories based on MIN_BATCH_INTERVAL. 
+
+The script should save any images that are acquired. Images are grouped into timestamped directories based on MIN_BATCH_INTERVAL.
 
 ### Useful snippets
 
@@ -77,7 +80,7 @@ The script should save any images that are acquired. Images are grouped into tim
 
 #### Convert to mp4 (compressed)
 
-`ffmpeg -framerate 10 -pattern_type glob -i "*.tiff" -vf format=yuv420p compressed.mp4`
+`ffmpeg -framerate 100 -pattern_type glob -i "*.tiff" -vf format=yuv420p compressed_100fps.mp4`
 
 #### Convert to mp4 (lossless)
 

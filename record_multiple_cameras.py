@@ -7,8 +7,10 @@ from pathlib import Path
 import datetime
 from PIL import Image
 from parameters import (
-    CAMERA_PARAMS,
-    CAMERA_NAMES_DICT,
+    CAMERA_PARAMS_COLOR,
+    CAMERA_PARAMS_MONO,
+    CAMERA_NAMES_DICT_COLOR,
+    CAMERA_NAMES_DICT_MONO,
     SAVE_LOCATION,
     SAVE_PREFIX,
     GRAB_TIMEOUT,
@@ -59,7 +61,7 @@ def find_cameras():
     # Remove cameras from cam_list if they are not in CAMERA_NAMES_DICT
     serial_numbers = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
     for serial_number in serial_numbers:
-        if serial_number not in CAMERA_NAMES_DICT.keys():
+        if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (serial_number not in CAMERA_NAMES_DICT_MONO.keys()):
             cam_list.RemoveBySerial(serial_number)
 
     # Print camera serials and names
@@ -67,7 +69,11 @@ def find_cameras():
     print("Cameras to be used: ", num_cameras)
     for cam in cam_list:
         serial_number = cam.TLDevice.DeviceSerialNumber.GetValue()
-        print(serial_number, CAMERA_NAMES_DICT[serial_number])
+        if serial_number in CAMERA_NAMES_DICT_COLOR.keys():
+            print(serial_number, CAMERA_NAMES_DICT_COLOR[serial_number])
+        elif serial_number in CAMERA_NAMES_DICT_MONO.keys():
+            print(serial_number, CAMERA_NAMES_DICT_MONO[serial_number])
+        
 
     # Release system if no cameras are found
     if num_cameras == 0:
@@ -88,8 +94,18 @@ def set_camera_params(cam_list):
         # Initialize
         cam.Init()
 
+        # Test if mono or color
+        if cam.DeviceID() in CAMERA_NAMES_DICT_COLOR.keys():
+            CAMERA_PARAMS = CAMERA_PARAMS_COLOR
+        elif cam.DeviceID() in CAMERA_NAMES_DICT_MONO.keys():
+            CAMERA_PARAMS = CAMERA_PARAMS_MONO
+        else:
+            print("Error: Camera serial number not in CAMERA_NAMES_DICT_COLOR or CAMERA_NAMES_DICT_MONO.")
+            return False
+        
         # Set imaging parameters
         for [param, value] in CAMERA_PARAMS:
+            print(param, value)
             # Split param strings by period to handle nested attributes. This helps the program handle updating parameters like "TLStream.StreamBufferCountMode"
             attr_list = param.split(".")
 
@@ -109,7 +125,12 @@ def set_camera_params(cam_list):
                 result = False
 
         # Set DeviceUserID (e.g. cam-A) based on serial number
-        for [serial, name] in CAMERA_NAMES_DICT.items():
+        for [serial, name] in CAMERA_NAMES_DICT_COLOR.items():
+            if serial == cam.DeviceID():
+                cam.DeviceUserID.SetValue(name)
+
+                # Set DeviceUserID (e.g. cam-A) based on serial number
+        for [serial, name] in CAMERA_NAMES_DICT_MONO.items():
             if serial == cam.DeviceID():
                 cam.DeviceUserID.SetValue(name)
 
@@ -284,7 +305,14 @@ def print_previous_batch_size():
             output += "\nBatch: " + batch_dir_name
 
             # Append the number of images saved for each camera
-            for cam_name in CAMERA_NAMES_DICT.values():
+            for cam_name in CAMERA_NAMES_DICT_COLOR.values():
+                cam_subdir = Path(batch_dir_path, cam_name)
+                file_list = list(cam_subdir.iterdir())
+                num_files = len(file_list)
+                output += "\n" + cam_name + ": " + str(num_files) + " images saved."
+
+            # Append the number of images saved for each camera
+            for cam_name in CAMERA_NAMES_DICT_MONO.values():
                 cam_subdir = Path(batch_dir_path, cam_name)
                 file_list = list(cam_subdir.iterdir())
                 num_files = len(file_list)

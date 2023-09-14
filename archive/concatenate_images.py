@@ -9,7 +9,7 @@ import cv2
 # Directories for reading/writing images
 FILETYPE = ".tiff"
 batch_dir = Path(
-    "/home/oconnorlab/Data/cameras/test_calibration/2023-07-12_11-54-19_332591"
+    "/home/oconnorlab/Data/cameras/test_calibration/2023-08-03_15-21-21_201604"
 )
 concat_dir = Path(batch_dir, "concatenated")
 concat_dir.mkdir(parents=True, exist_ok=True)
@@ -28,9 +28,12 @@ def concat_img(img_queue):
         # Load images
         img_list = [cv2.imread(str(p)) for p in img_path_list]
 
+        # # Concatenate horizontally
+        # im_v = cv2.hconcat(img_list)
+
         # Concatenate vertically
         im_v = cv2.vconcat(img_list)
-
+        
         # Save concatenated image
         dummy_img = img_path_list[0]
         img_num = dummy_img.stem.split("-")[-1]
