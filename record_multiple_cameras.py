@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 import datetime
 from PIL import Image
+import cv2
 from parameters import (
     CAMERA_PARAMS_COLOR,
     CAMERA_PARAMS_MONO,
@@ -175,7 +176,7 @@ def acquire_images(cam, image_queue):
             # Use try/except to handle timeout error (no image found within GRAB_TIMEOUT))
             try:
                 # Test if images have filled the camera buffer beyond capacity
-                if cam.TransferQueueCurrentBlockCount() > 0:
+                if cam.TransferQueueCurrentBlockCount() > 10:
                     print(
                         ("# of images in {0}'s buffer: {1}").format(
                             device_user_ID, cam.TransferQueueCurrentBlockCount()
@@ -257,9 +258,17 @@ def save_images(cam_name, image_queue, save_location):
         filepath = Path(cam_dir_path, filename)
 
         # Save image
-        output = image.GetNDArray()
-        img = Image.fromarray(output)
-        img.save(filepath)
+        
+        # output = image.GetNDArray()
+        # cv2.imwrite(str(filepath), output)
+
+        # output = image.GetNDArray()
+        # img = Image.fromarray(output)
+        # img.save(filepath)
+
+
+        image.Save(str(filepath))
+        
 
 
 def queue_counter(image_queues):

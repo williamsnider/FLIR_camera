@@ -1,7 +1,7 @@
 import PySpin
 from copy import deepcopy
 
-SAVE_LOCATION = "/home/oconnorlab/Data/cameras/test_calibration"
+SAVE_LOCATION = "/home/oconnorlab/Data/cameras/William"
 SAVE_PREFIX = (
     ""  # String appended to beginning of each image filename. Can be left blank.
 )
@@ -9,13 +9,13 @@ GRAB_TIMEOUT = (
     100  # (ms) length of time before cam.GrabNextImage() will timeout and stop hanging
 )
 NUM_THREADS_PER_CAM = (
-    6  # The number of saving threads per camera; each system has different best value
+    20  # The number of saving threads per camera; each system has different best value
 )
 VIDEO_FPS = 10  # What fps to save the video file as
-PIXEL_FORMAT = (
-    PySpin.PixelFormat_BayerRG8
-)  # What color format to convert from bayer; must match above
-FILETYPE = ".tiff"  #
+# PIXEL_FORMAT = (
+#     PySpin.PixelFormat_BayerRG8
+# )  # What color format to convert from bayer; must match above
+FILETYPE = ".bmp"  #
 QUALITY_LEVEL = 75  # 0 is worst; 95 is best; 100 disbles jpeg compression. Only matters if save_format_extension is jpg.
 MIN_BATCH_INTERVAL = 1  # (s) If time between this and previous image is more than this, a new directory is created (this separates images into directories for each new trial)
 
@@ -28,17 +28,17 @@ CAMERA_NAMES_DICT_MONO = {"23398259": "cam-C", "23398260": "cam-D", "23398261": 
 # According to the API, trigger mode needs to be turned off for other parameters (like TriggerSource) to be changed. For this reason, the order of the items in this list matters, and some parameters like TriggerMode appear twice. Obviously, the last value is the one we want.
 CAMERA_PARAMS_COLOR = [
     ["AcquisitionMode", PySpin.AcquisitionMode_Continuous],
-    ["DecimationHorizontal", 1],  # 1 is off, 2 is on
-    ["DecimationVertical", 1],
+    ["DecimationHorizontal", 2],  # 1 is off, 2 is on
+    ["DecimationVertical", 2],
     ["ExposureAuto", False],
     ["ExposureTime", 1000],  # us
     ["GainAuto", False],
-    ["Gain", 10],
-    ["PixelFormat", PIXEL_FORMAT],  # Which Bayer filter the camera uses
+    ["Gain", 20],
+    ["PixelFormat", PySpin.PixelFormat_BayerRG8],  # Which Bayer filter the camera uses
     ["BalanceWhiteAuto", False],
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
-    ["Width", 1920],
-    ["Height", 1200],
+    ["Width", 960],
+    ["Height", 600],
     ["OffsetX", 0],
     ["OffsetY", 0],
     ["TriggerMode", False],
@@ -49,7 +49,26 @@ CAMERA_PARAMS_COLOR = [
     ["TriggerMode", True],
 ]
 
+CAMERA_PARAMS_MONO = [
+    ["AcquisitionMode", PySpin.AcquisitionMode_Continuous],
+    ["DecimationHorizontal", 2],  # 1 is off, 2 is on
+    ["DecimationVertical", 2],
+    ["ExposureAuto", False],
+    ["ExposureTime", 1000],  # us
+    ["GainAuto", False],
+    ["Gain", 20],
+    ["PixelFormat", PySpin.PixelFormat_Mono8],  # Which Bayer filter the camera uses
+    # ["BalanceWhiteAuto", False],
+    ["IspEnable", False],  # Necessary to reach max framerate at full resolution
+    ["Width", 960],
+    ["Height", 600],
+    ["OffsetX", 0],
+    ["OffsetY", 0],
+    ["TriggerMode", False],
+    ["TriggerSource", PySpin.TriggerSource_Line3],
+    ["TriggerActivation", PySpin.TriggerActivation_RisingEdge],
+    ["TriggerOverlap", True],
+    ["TriggerDelay", 32],
+    ["TriggerMode", True],
+]
 
-CAMERA_PARAMS_MONO = deepcopy(CAMERA_PARAMS_COLOR)
-CAMERA_PARAMS_MONO[7][1] = PySpin.PixelFormat_Mono8
-CAMERA_PARAMS_MONO.remove(["BalanceWhiteAuto", False])
