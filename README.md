@@ -2,6 +2,10 @@
 
 Code to save images from multiple hardware-triggered FLIR Blackfly S cameras.
 
+
+https://github.com/williamsnider/FLIR_multi_cam/assets/38354953/00198fbe-e637-4dc6-a550-b40c75eaad99
+
+
 ## Description
 
 The `record_multiple_cameras.py` script interfaces with connected FLIR Blackfly cameras. It creates an aquisition thread for each camera, which grabs images from the cameras buffer. It creates several saving threads for each camera, which saves the images at a rate faster than they are acquired. In our experimental setup, this script is able to save images generated from multiple cameras at maximum resolution and framerate (~360MB/s per camera).
