@@ -4,9 +4,7 @@ Code to save images from multiple hardware-triggered FLIR Blackfly S cameras.
 
 Recording grasps at 100Hz from 6 hardware-triggered cameras.
 
-
 https://github.com/williamsnider/FLIR_multi_cam/assets/38354953/4e635d91-89a6-4f74-adad-b43fa7ced762
-
 
 ## Description
 
@@ -18,6 +16,9 @@ The `record_multi_cam.py` script interfaces with connected FLIR Blackfly cameras
 - Next, change the camera parameters (exposure, gain, etc) according to the setup.
 - Finally, running `record_multi_cam` will connect to the cameras and begin acquiring frames after hardware triggering.
 - To stop, use `ctrl+c` which will gracefully release the cameras.
+
+`debayer_images.py` removes the bayer pattern that appears on color cameras using only infrared illumination.
+`concatenate_images.py` combines synchronized frames from multiple cameras into a single image for multiview visualization.
 
 ## Installation Instructions (Ubuntu 20.04)
 
