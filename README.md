@@ -2,6 +2,8 @@
 
 Code to save images from multiple hardware-triggered FLIR Blackfly S cameras.
 
+## Demo
+
 Recording grasps at 100Hz from 6 hardware-triggered cameras.
 
 https://github.com/williamsnider/FLIR_multi_cam/assets/38354953/4e635d91-89a6-4f74-adad-b43fa7ced762
