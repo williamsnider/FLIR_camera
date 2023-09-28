@@ -7,7 +7,7 @@ from pathlib import Path
 import datetime
 from PIL import Image
 import cv2
-from parameters import (
+from record_multi_cam_params import (
     CAMERA_PARAMS_COLOR,
     CAMERA_PARAMS_MONO,
     CAMERA_NAMES_DICT_COLOR,
@@ -25,20 +25,14 @@ from parameters import (
 ### Global variables used across threads ###
 ############################################
 
-KEEP_ACQUIRING_FLAG = (
-    True  # Flag for halting acquisition of images; triggered by ctrl+c
-)
+KEEP_ACQUIRING_FLAG = True  # Flag for halting acquisition of images; triggered by ctrl+c
 SAVING_DONE_FLAG = False  # Flag for signaling that all queued images have been saved
 
 # Images are grouped into batches. New batches are created when a new image is acquired more than MIN_BATCH_INTERVAL from the previous image.
 prev_image_timestamp = time.time()  # Timestamp of previous image
 curr_image_timestamp = time.time()  # Timestamp of current image
-batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime(
-    "%Y-%m-%d_%H-%M-%S_%f"
-)
-lock = (
-    threading.Lock()
-)  # Used to lock the batch_dir_name variable when it is being updated
+batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime("%Y-%m-%d_%H-%M-%S_%f")
+lock = threading.Lock()  # Used to lock the batch_dir_name variable when it is being updated
 
 
 ################################
@@ -62,7 +56,9 @@ def find_cameras():
     # Remove cameras from cam_list if they are not in CAMERA_NAMES_DICT
     serial_numbers = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
     for serial_number in serial_numbers:
-        if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (serial_number not in CAMERA_NAMES_DICT_MONO.keys()):
+        if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (
+            serial_number not in CAMERA_NAMES_DICT_MONO.keys()
+        ):
             cam_list.RemoveBySerial(serial_number)
 
     # Print camera serials and names
@@ -74,7 +70,6 @@ def find_cameras():
             print(serial_number, CAMERA_NAMES_DICT_COLOR[serial_number])
         elif serial_number in CAMERA_NAMES_DICT_MONO.keys():
             print(serial_number, CAMERA_NAMES_DICT_MONO[serial_number])
-        
 
     # Release system if no cameras are found
     if num_cameras == 0:
@@ -103,7 +98,7 @@ def set_camera_params(cam_list):
         else:
             print("Error: Camera serial number not in CAMERA_NAMES_DICT_COLOR or CAMERA_NAMES_DICT_MONO.")
             return False
-        
+
         # Set imaging parameters
         for [param, value] in CAMERA_PARAMS:
             print(param, value)
@@ -191,14 +186,11 @@ def acquire_images(cam, image_queue):
                     # To group the images into sequential batches (separate image sets spaced apart by MIN_BATCH_INTERVAL), we compare the timestamp of the current image to that of the previous image. If it exceeds MIN_BATCH_INTERVAL, update batch_dir_name (global variable) which will change the directory in which the images are saved. Using the lock is necessary so that only the first thread that detects the change will update the directory name for all threads.
                     with lock:
                         curr_image_timestamp = time.time()
-                        if (
-                            curr_image_timestamp - prev_image_timestamp
-                            > MIN_BATCH_INTERVAL
-                        ):
+                        if curr_image_timestamp - prev_image_timestamp > MIN_BATCH_INTERVAL:
                             # Update batch_dir_name to reflect the current timestamp
-                            batch_dir_name = datetime.datetime.fromtimestamp(
-                                curr_image_timestamp
-                            ).strftime("%Y-%m-%d_%H-%M-%S_%f")
+                            batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime(
+                                "%Y-%m-%d_%H-%M-%S_%f"
+                            )
 
                         prev_image_timestamp = curr_image_timestamp
 
@@ -258,7 +250,7 @@ def save_images(cam_name, image_queue, save_location):
         filepath = Path(cam_dir_path, filename)
 
         # Save image
-        
+
         # output = image.GetNDArray()
         # cv2.imwrite(str(filepath), output)
 
@@ -266,9 +258,7 @@ def save_images(cam_name, image_queue, save_location):
         # img = Image.fromarray(output)
         # img.save(filepath)
 
-
         image.Save(str(filepath))
-        
 
 
 def queue_counter(image_queues):
@@ -279,10 +269,7 @@ def queue_counter(image_queues):
     """
     while SAVING_DONE_FLAG is False:
         time.sleep(0.25)
-        queue_lengths = [
-            " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
-            for idx, q in enumerate(image_queues)
-        ]
+        queue_lengths = [" Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5) for idx, q in enumerate(image_queues)]
         print(" Image queue lengths:" + "".join(queue_lengths), end="\r")
 
 
@@ -333,9 +320,7 @@ def print_previous_batch_size():
             first_file_savetime = file_list[0].stat().st_mtime
             last_file_savetime = file_list[-1].stat().st_mtime
             estimated_framerate = num_files / (last_file_savetime - first_file_savetime)
-            output += (
-                "\nEstimated framerate: " + str(round(estimated_framerate, 1)) + " fps"
-            )
+            output += "\nEstimated framerate: " + str(round(estimated_framerate, 1)) + " fps"
             print(output)
 
             # Update for subsequent loops
@@ -382,23 +367,17 @@ def record_high_bandwidth_video(cam_list, system):
                 saving_threads.append(saving_thread)
 
             # Create an acquisition thread for each camera, which places images into the most recent image_queue
-            acquisition_thread = threading.Thread(
-                target=acquire_images, args=(cam, image_queues[-1])
-            )
+            acquisition_thread = threading.Thread(target=acquire_images, args=(cam, image_queues[-1]))
             acquisition_thread.start()
             acquisition_threads.append(acquisition_thread)
 
         # Create the queue counter, which prints the size of each image queue
         time.sleep(0.5)
-        queue_counter_thread = threading.Thread(
-            target=queue_counter, args=([image_queues])
-        )
+        queue_counter_thread = threading.Thread(target=queue_counter, args=([image_queues]))
         queue_counter_thread.start()
 
         # Create the print_previous_batch_size thread, which prints the number of saved images in each batch
-        print_previous_batch_size_thread = threading.Thread(
-            target=print_previous_batch_size
-        )
+        print_previous_batch_size_thread = threading.Thread(target=print_previous_batch_size)
         print_previous_batch_size_thread.start()
 
         ######################################################
@@ -443,9 +422,7 @@ def record_high_bandwidth_video(cam_list, system):
                 print_previous_batch_size_thread.join()
 
             except KeyboardInterrupt:
-                print(
-                    "KeyboardInterrupt rejected. Be patient, images are still being saved."
-                )
+                print("KeyboardInterrupt rejected. Be patient, images are still being saved.")
                 continue
 
         print(" " * 80)

@@ -1,29 +1,22 @@
 import PySpin
-from copy import deepcopy
 
 SAVE_LOCATION = "/home/oconnorlab/Data/cameras/William"
-SAVE_PREFIX = (
-    ""  # String appended to beginning of each image filename. Can be left blank.
-)
-GRAB_TIMEOUT = (
-    100  # (ms) length of time before cam.GrabNextImage() will timeout and stop hanging
-)
-NUM_THREADS_PER_CAM = (
-    20  # The number of saving threads per camera; each system has different best value
-)
-VIDEO_FPS = 10  # What fps to save the video file as
-# PIXEL_FORMAT = (
-#     PySpin.PixelFormat_BayerRG8
-# )  # What color format to convert from bayer; must match above
+SAVE_PREFIX = ""  # String appended to beginning of each image filename. Can be left blank.
+GRAB_TIMEOUT = 100  # (ms) length of time before cam.GrabNextImage() will timeout and stop hanging
+NUM_THREADS_PER_CAM = 20  # The number of saving threads per camera; each system has different best value
 FILETYPE = ".bmp"  #
-QUALITY_LEVEL = 75  # 0 is worst; 95 is best; 100 disbles jpeg compression. Only matters if save_format_extension is jpg.
 MIN_BATCH_INTERVAL = 1  # (s) If time between this and previous image is more than this, a new directory is created (this separates images into directories for each new trial)
 
 
 # Assign custom names to cameras based on their serial numbers. Comment out to ignore that camera.
 
 CAMERA_NAMES_DICT_COLOR = {"19472072": "cam-A", "19472089": "cam-B"}
-CAMERA_NAMES_DICT_MONO = {"23398259": "cam-C", "23398260": "cam-D", "23398261": "cam-E", "23428985": "cam-F",}
+CAMERA_NAMES_DICT_MONO = {
+    "23398259": "cam-C",
+    "23398260": "cam-D",
+    "23398261": "cam-E",
+    "23428985": "cam-F",
+}
 
 # According to the API, trigger mode needs to be turned off for other parameters (like TriggerSource) to be changed. For this reason, the order of the items in this list matters, and some parameters like TriggerMode appear twice. Obviously, the last value is the one we want.
 CAMERA_PARAMS_COLOR = [
@@ -71,4 +64,3 @@ CAMERA_PARAMS_MONO = [
     ["TriggerDelay", 32],
     ["TriggerMode", True],
 ]
-
