@@ -51,7 +51,6 @@ CAMERA_PARAMS_MONO = [
     ["GainAuto", False],
     ["Gain", 20],
     ["PixelFormat", PySpin.PixelFormat_Mono8],  # Which Bayer filter the camera uses
-    # ["BalanceWhiteAuto", False],
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
     ["Width", 960],
     ["Height", 600],
