@@ -14,7 +14,7 @@ The `record_multi_cam.py` script interfaces with connected FLIR Blackfly cameras
 - First, update `record_multi_cam_params.py` to indicate the correct serial numbers of your cameras.
 - Next, change the camera parameters (exposure, gain, etc) according to the setup.
 - Finally, running `record_multi_cam` will connect to the cameras and begin acquiring frames after hardware triggering.
-- To stop, use `ctrl + c` which will gracefully release the cameras.
+- To stop, use `ctrl+c` which will gracefully release the cameras.
 
 ## Installation Instructions (Ubuntu 20.04)
 
