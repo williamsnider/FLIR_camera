@@ -3,11 +3,7 @@
 Code to save images from multiple hardware-triggered FLIR Blackfly S cameras.
 
 Recording grasps at 100Hz from 6 hardware-triggered cameras.
-
-<div align="center">
 https://github.com/williamsnider/FLIR_multi_cam/assets/38354953/00198fbe-e637-4dc6-a550-b40c75eaad99
-
-</div>
 
 ## Description
 
@@ -69,7 +65,7 @@ Needed to downgrade one package due to conda issue (https://github.com/conda/con
 conda install libffi==3.3
 ```
 
-### Useful ffmpeg snippets
+## Useful ffmpeg snippets
 
 #### Convert files to png
 
