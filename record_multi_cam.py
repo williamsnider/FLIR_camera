@@ -5,8 +5,6 @@ import queue
 import time
 from pathlib import Path
 import datetime
-from PIL import Image
-import cv2
 from record_multi_cam_params import (
     CAMERA_PARAMS_COLOR,
     CAMERA_PARAMS_MONO,
