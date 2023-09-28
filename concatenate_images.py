@@ -85,7 +85,7 @@ def main():
 
     # Monitor the queue size until it's empty
     while not image_queue.empty():
-        print(f"Queue size: {image_queue.qsize()}            ", end="\r")
+        print(f"Queue size: {image_queue.qsize()}           ", end="\r")
         time.sleep(0.5)
 
     # Ensure all threads have completed
