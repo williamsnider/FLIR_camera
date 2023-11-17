@@ -12,6 +12,7 @@ from parameters import (
     CAMERA_PARAMS_MONO,
     CAMERA_NAMES_DICT_COLOR,
     CAMERA_NAMES_DICT_MONO,
+    CAMERA_SPECIFIC_DICT,
     SAVE_LOCATION,
     SAVE_PREFIX,
     GRAB_TIMEOUT,
@@ -25,20 +26,14 @@ from parameters import (
 ### Global variables used across threads ###
 ############################################
 
-KEEP_ACQUIRING_FLAG = (
-    True  # Flag for halting acquisition of images; triggered by ctrl+c
-)
+KEEP_ACQUIRING_FLAG = True  # Flag for halting acquisition of images; triggered by ctrl+c
 SAVING_DONE_FLAG = False  # Flag for signaling that all queued images have been saved
 
 # Images are grouped into batches. New batches are created when a new image is acquired more than MIN_BATCH_INTERVAL from the previous image.
 prev_image_timestamp = time.time()  # Timestamp of previous image
 curr_image_timestamp = time.time()  # Timestamp of current image
-batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime(
-    "%Y-%m-%d_%H-%M-%S_%f"
-)
-lock = (
-    threading.Lock()
-)  # Used to lock the batch_dir_name variable when it is being updated
+batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime("%Y-%m-%d_%H-%M-%S_%f")
+lock = threading.Lock()  # Used to lock the batch_dir_name variable when it is being updated
 
 
 ################################
@@ -53,16 +48,34 @@ def find_cameras():
     Cameras whose serial numbers are not in `CAMERA_NAMES_DICT` are removed from the list of cameras. Change these serial numbers in parameters.py.
     """
 
-    # Retrieve reference to system object
+    # Factory reset cameras to ensure nodes are rewritable (necessary if they were not properly closed)
+    print("Resetting cameras...")
     system = PySpin.System.GetInstance()
-
-    # Get connected cameras
     cam_list = system.GetCameras()
+    num_previously_connected_cameras = len(cam_list)
+    for cam in cam_list:
+        cam.Init()
+        cam.DeviceReset()
+        del cam
+
+    # Wait until cameras are reconnected
+    while True:
+        print("Waiting for cameras to reconnect...")
+        time.sleep(1)
+
+        # Find cameras
+        system = PySpin.System.GetInstance()
+        cam_list = system.GetCameras()
+
+        if len(cam_list) == num_previously_connected_cameras:
+            break
 
     # Remove cameras from cam_list if they are not in CAMERA_NAMES_DICT
     serial_numbers = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
     for serial_number in serial_numbers:
-        if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (serial_number not in CAMERA_NAMES_DICT_MONO.keys()):
+        if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (
+            serial_number not in CAMERA_NAMES_DICT_MONO.keys()
+        ):
             cam_list.RemoveBySerial(serial_number)
 
     # Print camera serials and names
@@ -74,7 +87,6 @@ def find_cameras():
             print(serial_number, CAMERA_NAMES_DICT_COLOR[serial_number])
         elif serial_number in CAMERA_NAMES_DICT_MONO.keys():
             print(serial_number, CAMERA_NAMES_DICT_MONO[serial_number])
-        
 
     # Release system if no cameras are found
     if num_cameras == 0:
@@ -103,10 +115,9 @@ def set_camera_params(cam_list):
         else:
             print("Error: Camera serial number not in CAMERA_NAMES_DICT_COLOR or CAMERA_NAMES_DICT_MONO.")
             return False
-        
+
         # Set imaging parameters
         for [param, value] in CAMERA_PARAMS:
-            print(param, value)
             # Split param strings by period to handle nested attributes. This helps the program handle updating parameters like "TLStream.StreamBufferCountMode"
             attr_list = param.split(".")
 
@@ -124,6 +135,26 @@ def set_camera_params(cam_list):
                     "This may have been caused by not properly closing the cameras. The cameras need to be reset (or unplugged)."
                 )
                 result = False
+
+        # Set camera specific parameters (e.g. cropping)
+        crop_params = CAMERA_SPECIFIC_DICT[cam.DeviceID()]
+        for [param, value] in crop_params:
+            attr_list = param.split(".")
+            nested_attr = cam
+            for attr in attr_list:
+                nested_attr = getattr(nested_attr, attr)
+
+            try:
+                nested_attr.SetValue(value)
+            except PySpin.SpinnakerException as ex:
+                print("Error: %s" % ex)
+                print(
+                    "This may have been caused by not properly closing the cameras. The cameras need to be reset (or unplugged)."
+                )
+                result = False
+
+        # Set trigger mode back to True
+        cam.TriggerMode.SetValue(True)
 
         # Set DeviceUserID (e.g. cam-A) based on serial number
         for [serial, name] in CAMERA_NAMES_DICT_COLOR.items():
@@ -170,6 +201,8 @@ def acquire_images(cam, image_queue):
         # Begin acquiring images
         cam.BeginAcquisition()
         device_user_ID = cam.DeviceUserID()
+        frame_idx = 0  # Resets for each batch
+        batch_dir_name_prev = batch_dir_name  # Detects when batch_dir_name changes
         print("[{}] Acquiring images...".format(device_user_ID))
 
         while KEEP_ACQUIRING_FLAG:
@@ -191,19 +224,21 @@ def acquire_images(cam, image_queue):
                     # To group the images into sequential batches (separate image sets spaced apart by MIN_BATCH_INTERVAL), we compare the timestamp of the current image to that of the previous image. If it exceeds MIN_BATCH_INTERVAL, update batch_dir_name (global variable) which will change the directory in which the images are saved. Using the lock is necessary so that only the first thread that detects the change will update the directory name for all threads.
                     with lock:
                         curr_image_timestamp = time.time()
-                        if (
-                            curr_image_timestamp - prev_image_timestamp
-                            > MIN_BATCH_INTERVAL
-                        ):
+                        if curr_image_timestamp - prev_image_timestamp > MIN_BATCH_INTERVAL:
                             # Update batch_dir_name to reflect the current timestamp
-                            batch_dir_name = datetime.datetime.fromtimestamp(
-                                curr_image_timestamp
-                            ).strftime("%Y-%m-%d_%H-%M-%S_%f")
+                            batch_dir_name = datetime.datetime.fromtimestamp(curr_image_timestamp).strftime(
+                                "%Y-%m-%d_%H-%M-%S_%f"
+                            )
 
                         prev_image_timestamp = curr_image_timestamp
 
                 except PySpin.SpinnakerException:
                     continue
+
+                # Detect change in batch_dir_name to update frame_idx
+                if batch_dir_name != batch_dir_name_prev:
+                    frame_idx = 0  # Reset frame_idx for each batch
+                    batch_dir_name_prev = batch_dir_name
 
                 #  Handle incomplete images
                 if image_result.IsIncomplete():
@@ -215,8 +250,9 @@ def acquire_images(cam, image_queue):
                 else:
                     # Add grabbed image to queue, which will be saved by saver threads
                     image_copy = PySpin.Image.Create(image_result)
-                    image_queue.put(image_copy)
+                    image_queue.put((frame_idx, image_copy))
                     image_result.Release()
+                    frame_idx += 1
 
             except PySpin.SpinnakerException as ex:
                 print("Error: %s" % ex)
@@ -239,15 +275,16 @@ def save_images(cam_name, image_queue, save_location):
     """
 
     while True:
-        image = image_queue.get(block=True)
+        (frame_idx, image) = image_queue.get(block=True)
 
         # Exit loop if "None" is received
         if image is None:  # No more images
             break
 
         # Construct filename
-        frame_id = str(image.GetFrameID())
-        frame_id = frame_id.zfill(9)  # pad frame id with zeros to order correctly
+        # frame_id = str(image.GetFrameID())
+        frame_id = str(frame_idx)  # Resets for each batch, unlike image.GetFrameID()
+        frame_id = frame_id.zfill(6)  # pad frame id with zeros to order correctly
         filename = SAVE_PREFIX + "-" + cam_name + "-" + frame_id + FILETYPE
 
         # Construct batch/camera directory
@@ -258,7 +295,7 @@ def save_images(cam_name, image_queue, save_location):
         filepath = Path(cam_dir_path, filename)
 
         # Save image
-        
+
         # output = image.GetNDArray()
         # cv2.imwrite(str(filepath), output)
 
@@ -266,9 +303,7 @@ def save_images(cam_name, image_queue, save_location):
         # img = Image.fromarray(output)
         # img.save(filepath)
 
-
         image.Save(str(filepath))
-        
 
 
 def queue_counter(image_queues):
@@ -279,11 +314,17 @@ def queue_counter(image_queues):
     """
     while SAVING_DONE_FLAG is False:
         time.sleep(0.25)
-        queue_lengths = [
-            " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
-            for idx, q in enumerate(image_queues)
-        ]
-        print(" Image queue lengths:" + "".join(queue_lengths), end="\r")
+        # queue_lengths = [
+        #     " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
+        #     for idx, q in enumerate(image_queues)
+        # ]
+        # print(" Image queue lengths:" + "".join(queue_lengths), end="\r")
+        msg = ""
+        for idx, q in enumerate(image_queues):
+            if q.qsize() > 5:
+                msg += " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
+        if msg != "":
+            print(" Image queue lengths:" + msg, end="\r")
 
 
 def print_previous_batch_size():
@@ -333,10 +374,11 @@ def print_previous_batch_size():
             first_file_savetime = file_list[0].stat().st_mtime
             last_file_savetime = file_list[-1].stat().st_mtime
             estimated_framerate = num_files / (last_file_savetime - first_file_savetime)
-            output += (
-                "\nEstimated framerate: " + str(round(estimated_framerate, 1)) + " fps"
-            )
+            output += "\nEstimated framerate: " + str(round(estimated_framerate, 1)) + " fps"
             print(output)
+
+            # Print remaining space on hard drive
+            check_hard_drive_space()
 
             # Update for subsequent loops
             batches_already_reported.append(batch_dir_name)
@@ -382,23 +424,17 @@ def record_high_bandwidth_video(cam_list, system):
                 saving_threads.append(saving_thread)
 
             # Create an acquisition thread for each camera, which places images into the most recent image_queue
-            acquisition_thread = threading.Thread(
-                target=acquire_images, args=(cam, image_queues[-1])
-            )
+            acquisition_thread = threading.Thread(target=acquire_images, args=(cam, image_queues[-1]))
             acquisition_thread.start()
             acquisition_threads.append(acquisition_thread)
 
         # Create the queue counter, which prints the size of each image queue
         time.sleep(0.5)
-        queue_counter_thread = threading.Thread(
-            target=queue_counter, args=([image_queues])
-        )
+        queue_counter_thread = threading.Thread(target=queue_counter, args=([image_queues]))
         queue_counter_thread.start()
 
         # Create the print_previous_batch_size thread, which prints the number of saved images in each batch
-        print_previous_batch_size_thread = threading.Thread(
-            target=print_previous_batch_size
-        )
+        print_previous_batch_size_thread = threading.Thread(target=print_previous_batch_size)
         print_previous_batch_size_thread.start()
 
         ######################################################
@@ -429,7 +465,7 @@ def record_high_bandwidth_video(cam_list, system):
         # Pass None to image queues to signal the end of saving
         for q in image_queues:
             for _ in range(NUM_THREADS_PER_CAM):
-                q.put(None)
+                q.put((None, None))
 
         # This block prevents ctrl+c from closing the program before images have finished saving.
         while SAVING_DONE_FLAG is False:
@@ -443,9 +479,7 @@ def record_high_bandwidth_video(cam_list, system):
                 print_previous_batch_size_thread.join()
 
             except KeyboardInterrupt:
-                print(
-                    "KeyboardInterrupt rejected. Be patient, images are still being saved."
-                )
+                print("KeyboardInterrupt rejected. Be patient, images are still being saved.")
                 continue
 
         print(" " * 80)

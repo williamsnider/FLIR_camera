@@ -1,10 +1,10 @@
 import cv2
 from pathlib import Path
 
-img_dir =   Path("/home/oconnorlab/Data/cameras/William/2023-09-27_17-28-13_047398/cam-B-original")
+img_dir = Path("/home/oconnorlab/Desktop/images_for_poster/")
+
 
 def debayer_image(filename):
-
     # Load the raw Bayer image (as a single-channel grayscale image)
     raw_img = cv2.imread(str(filename), cv2.IMREAD_GRAYSCALE)
 
@@ -23,18 +23,19 @@ def debayer_image(filename):
     # cv2.imwrite('debayered_image.png', debayered_img)
     return grayscale_img
 
+
 if __name__ == "__main__":
+    images_to_debayer = []
+    for key in ["cam-A", "cam-B"]:
+        images_to_debayer.extend(list(img_dir.glob(f"*{key}*.bmp")))
 
-
-    img_list = list(img_dir.glob('*.bmp'))
-
-    save_dir = Path(str(img_dir).replace("-original",""))
+    save_dir = Path(str(img_dir).replace(".", "-debayered."))
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    for filename in img_list:
+    for filename in images_to_debayer:
         debayered = debayer_image(filename)
 
-        savename = Path(save_dir, filename.name)
+        savename = Path(save_dir, filename.name.replace(".", "-debayered."))
         cv2.imwrite(str(savename), debayered)
 
-
+## FFMPEG command to convert .bmp to .png

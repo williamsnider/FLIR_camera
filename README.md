@@ -80,8 +80,8 @@ The script should save any images that are acquired. Images are grouped into tim
 
 #### Convert to mp4 (compressed)
 
-`ffmpeg -framerate 100 -pattern_type glob -i "*.tiff" -vf format=yuv420p compressed_100fps.mp4`
+`ffmpeg -framerate 20 -pattern_type glob -i "*.bmp" -vf format=yuv420p compressed_20fps.mp4`
 
 #### Convert to mp4 (lossless)
 
-`ffmpeg -framerate 10 -pattern_type glob -i "*.tiff" -vf format=yuv420p -crf 0 output.mp4`
+`ffmpeg -framerate 10 -pattern_type glob -i "*.bmp" -vf format=yuv420p -crf 0 output.mp4`
