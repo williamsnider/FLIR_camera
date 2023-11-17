@@ -5,9 +5,7 @@ import queue
 import time
 from pathlib import Path
 import datetime
-from PIL import Image
-import cv2
-from parameters import (
+from record_multi_cam_params import (
     CAMERA_PARAMS_COLOR,
     CAMERA_PARAMS_MONO,
     CAMERA_NAMES_DICT_COLOR,
@@ -314,6 +312,7 @@ def queue_counter(image_queues):
     """
     while SAVING_DONE_FLAG is False:
         time.sleep(0.25)
+<<<<<<< HEAD:record_multiple_cameras.py
         # queue_lengths = [
         #     " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
         #     for idx, q in enumerate(image_queues)
@@ -325,6 +324,10 @@ def queue_counter(image_queues):
                 msg += " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
         if msg != "":
             print(" Image queue lengths:" + msg, end="\r")
+=======
+        queue_lengths = [" Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5) for idx, q in enumerate(image_queues)]
+        print(" Image queue lengths:" + "".join(queue_lengths), end="\r")
+>>>>>>> e813fa8d6188ec870fcac23d5c1a015df06488c1:record_multi_cam.py
 
 
 def print_previous_batch_size():

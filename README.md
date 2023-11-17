@@ -1,16 +1,28 @@
-# FLIR_camera
+# FLIR_multi_cam
 
 Code to save images from multiple hardware-triggered FLIR Blackfly S cameras.
 
+## Demo
+
+Recording grasps at 100Hz from 6 hardware-triggered cameras.
+
+https://github.com/williamsnider/FLIR_multi_cam/assets/38354953/4e635d91-89a6-4f74-adad-b43fa7ced762
+
 ## Description
 
-The `record_multiple_cameras.py` script interfaces with connected FLIR Blackfly cameras. It creates an aquisition thread for each camera, which grabs images from the cameras buffer. It creates several saving threads for each camera, which saves the images at a rate faster than they are acquired. In our experimental setup, this script is able to save images generated from multiple cameras at maximum resolution and framerate (~360MB/s per camera).
+The `record_multi_cam.py` script interfaces with connected FLIR Blackfly cameras. First, it detects and connects to all FLIR cameras, initializing each to the parameters set in `record_mutli_cam_params.py`. Second, for each camera, an acquisition thread is created, which grabs frames from the camera buffer and stores them in an image queue (RAM). Third, the script uses multiple saving threads per camera, which pull images from the image queues and writes them to disk. Using this multithreaded approach, high speed video from multiple cameras can be acquired.
 
 ## How to use
 
-First, update parameters.py to indicate the correct serial numbers of your cameras. Additionally, change the camera parameters (exposure, gain, etc) according to the setup.
+- First, update `record_multi_cam_params.py` to indicate the correct serial numbers of your cameras.
+- Next, change the camera parameters (exposure, gain, etc) according to the setup.
+- Finally, running `record_multi_cam` will connect to the cameras and begin acquiring frames after hardware triggering.
+- To stop, use `ctrl+c` which will gracefully release the cameras.
 
-#### Installation Instructions for Ubuntu 20.04
+`debayer_images.py` removes the bayer pattern that appears on color cameras using only infrared illumination.
+`concatenate_images.py` combines synchronized frames from multiple cameras into a single image for multiview visualization.
+
+## Installation Instructions (Ubuntu 20.04)
 
 Set up conda environment with python 3.8
 
@@ -51,7 +63,7 @@ conda install numpy matplotlib
 pip install spinnaker_python-3.1.0.79-cp38-cp38-linux_x86_64.whl
 ```
 
-#### Misc
+#### Misc Notes
 
 Needed to downgrade one package due to conda issue (https://github.com/conda/conda/issues/12287)
 
@@ -59,16 +71,7 @@ Needed to downgrade one package due to conda issue (https://github.com/conda/con
 conda install libffi==3.3
 ```
 
-#### Running the script
-
-```
-conda activate flir_venv
-python record_multiple_cameras.py
-```
-
-The script should save any images that are acquired. Images are grouped into timestamped directories based on MIN_BATCH_INTERVAL.
-
-### Useful snippets
+## Useful ffmpeg snippets
 
 #### Convert files to png
 

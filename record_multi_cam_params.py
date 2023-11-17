@@ -1,5 +1,4 @@
 import PySpin
-from copy import deepcopy
 
 SAVE_LOCATION = "/home/oconnorlab/Data/cameras/Yiting"
 SAVE_PREFIX = ""  # String appended to beginning of each image filename. Can be left blank.
@@ -52,7 +51,6 @@ CAMERA_PARAMS_MONO = [
     ["ExposureTime", 2000],  # us
     ["GainAuto", False],
     ["PixelFormat", PySpin.PixelFormat_Mono8],  # Which Bayer filter the camera uses
-    # ["BalanceWhiteAuto", False],
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
     ["TriggerMode", False],
     ["TriggerSource", PySpin.TriggerSource_Line3],
