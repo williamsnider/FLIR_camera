@@ -231,6 +231,7 @@ def acquire_images(cam, image_queue):
                         prev_image_timestamp = curr_image_timestamp
 
                 except PySpin.SpinnakerException:
+                    time.sleep(0.001)  # Allow time on other threads
                     continue
 
                 # Detect change in batch_dir_name to update frame_idx
@@ -273,7 +274,11 @@ def save_images(cam_name, image_queue, save_location):
     """
 
     while True:
-        (frame_idx, image) = image_queue.get(block=True)
+        try:
+            frame_idx, image = image_queue.get()
+        except:
+            time.sleep(0.001)  # Allow time on other threads
+            continue
 
         # Exit loop if "None" is received
         if image is None:  # No more images
@@ -286,7 +291,8 @@ def save_images(cam_name, image_queue, save_location):
         filename = SAVE_PREFIX + "-" + cam_name + "-" + frame_id + FILETYPE
 
         # Construct batch/camera directory
-        cam_dir_path = Path(save_location, batch_dir_name, cam_name)
+        date_dir = batch_dir_name[:10] + "/cameras"
+        cam_dir_path = Path(save_location, date_dir, batch_dir_name, cam_name)
         cam_dir_path.mkdir(parents=True, exist_ok=True)
 
         # Construct full filepath
@@ -339,7 +345,8 @@ def print_previous_batch_size():
         time.sleep(0.25)
 
         # Get full path of current batch directory
-        batch_dir_path = Path(SAVE_LOCATION, batch_dir_name)
+        date_dir = batch_dir_name[:10] + "/cameras"
+        batch_dir_path = Path(SAVE_LOCATION, date_dir, batch_dir_name)
 
         # Print status if (1) MIN_BATCH_INTERVAL has passed since the last image was acquired. (2) batch_dir_name has not already had its status printed. (3) batch_dir_path exists i.e. the batch directory has been created and images were saved.
         if (

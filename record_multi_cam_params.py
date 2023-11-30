@@ -1,9 +1,9 @@
 import PySpin
 
-SAVE_LOCATION = "/home/oconnorlab/Data/cameras/Yiting"
+SAVE_LOCATION = "/home/oconnorlab/Data"
 SAVE_PREFIX = ""  # String appended to beginning of each image filename. Can be left blank.
 GRAB_TIMEOUT = 100  # (ms) length of time before cam.GrabNextImage() will timeout and stop hanging
-NUM_THREADS_PER_CAM = 20  # The number of saving threads per camera; each system has different best value
+NUM_THREADS_PER_CAM = 10  # The number of saving threads per camera; each system has different best value
 VIDEO_FPS = 10  # What fps to save the video file as
 # PIXEL_FORMAT = (
 #     PySpin.PixelFormat_BayerRG8
@@ -17,12 +17,12 @@ MIN_BATCH_INTERVAL = 1  # (s) If time between this and previous image is more th
 
 # Assign custom names to cameras based on their serial numbers. Comment out to ignore that camera.
 
-CAMERA_NAMES_DICT_COLOR = {"19472072": "cam-A", "19472089": "cam-B"}
+CAMERA_NAMES_DICT_COLOR = {"19472072": "camTR", "19472089": "camBo"}
 CAMERA_NAMES_DICT_MONO = {
-    "23398259": "cam-C",
-    "23398260": "cam-D",
-    "23398261": "cam-E",
-    "23428985": "cam-F",
+    "23398259": "camTL",
+    "23398260": "camBL",
+    "23398261": "camBR",
+    "23428985": "camTo",
 }
 
 # According to the API, trigger mode needs to be turned off for other parameters (like TriggerSource) to be changed. For this reason, the order of the items in this list matters. After setting the parameters, TriggerMode is turned back to True.
@@ -31,7 +31,7 @@ CAMERA_PARAMS_COLOR = [
     ["DecimationHorizontal", 1],  # 1 is off, 2 is on
     ["DecimationVertical", 1],
     ["ExposureAuto", False],
-    ["ExposureTime", 2000],  # us
+    ["ExposureTime", 500],  # us
     ["GainAuto", False],
     ["PixelFormat", PySpin.PixelFormat_BayerRG8],  # Which Bayer filter the camera uses
     ["BalanceWhiteAuto", False],
@@ -48,7 +48,7 @@ CAMERA_PARAMS_MONO = [
     ["DecimationHorizontal", 1],  # 1 is off, 2 is on
     ["DecimationVertical", 1],
     ["ExposureAuto", False],
-    ["ExposureTime", 2000],  # us
+    ["ExposureTime", 500],  # us
     ["GainAuto", False],
     ["PixelFormat", PySpin.PixelFormat_Mono8],  # Which Bayer filter the camera uses
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
@@ -63,44 +63,44 @@ CAMERA_PARAMS_MONO = [
 CAMERA_SPECIFIC_DICT = {
     "23428985": [
         ["Width", 960],
-        ["Height", 600],
-        ["OffsetX", 400],
-        ["OffsetY", 300],
-        ["Gain", 17],
+        ["Height", 960],
+        ["OffsetX", 200],
+        ["OffsetY", 150],
+        ["Gain", 25],
     ],
     "19472089": [
         ["Width", 960],
-        ["Height", 600],
-        ["OffsetX", 300],
-        ["OffsetY", 250],
-        ["Gain", 15],
+        ["Height", 960],
+        ["OffsetX", 472],
+        ["OffsetY", 100],
+        ["Gain", 25],
     ],
     "19472072": [
         ["Width", 960],
-        ["Height", 600],
-        ["OffsetX", 500],
-        ["OffsetY", 274],
-        ["Gain", 15],
+        ["Height", 960],
+        ["OffsetX", 600],
+        ["OffsetY", 50],
+        ["Gain", 25],
     ],
     "23398259": [
         ["Width", 960],
-        ["Height", 600],
-        ["OffsetX", 400],
-        ["OffsetY", 324],
-        ["Gain", 20],
+        ["Height", 960],
+        ["OffsetX", 200],
+        ["OffsetY", 150],
+        ["Gain", 25],
     ],
     "23398260": [
         ["Width", 960],
-        ["Height", 600],
-        ["OffsetX", 500],
-        ["OffsetY", 350],
-        ["Gain", 15],
+        ["Height", 960],
+        ["OffsetX", 300],
+        ["OffsetY", 100],
+        ["Gain", 25],
     ],
     "23398261": [
         ["Width", 960],
-        ["Height", 600],
-        ["OffsetX", 400],
-        ["OffsetY", 300],
-        ["Gain", 20],
+        ["Height", 960],
+        ["OffsetX", 500],
+        ["OffsetY", 200],
+        ["Gain", 25],
     ],
 }

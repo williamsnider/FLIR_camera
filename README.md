@@ -83,8 +83,30 @@ conda install libffi==3.3
 
 #### Convert to mp4 (compressed)
 
-`ffmpeg -framerate 20 -pattern_type glob -i "*.bmp" -vf format=yuv420p compressed_20fps.mp4`
+`ffmpeg -framerate 100 -pattern_type glob -i "*.bmp" -vf format=yuv420p compressed_100fps.mp4`
 
 #### Convert to mp4 (lossless)
 
-`ffmpeg -framerate 10 -pattern_type glob -i "*.bmp" -vf format=yuv420p -crf 0 output.mp4`
+`ffmpeg -framerate 100 -pattern_type glob -i "*.bmp" -vf format=yuv420p -crf 0 output.mp4`
+
+#### Delete non-grasped trials
+
+`for dir in /home/oconnorlab/Data/2023-11-29/cameras/*; do
+    if [ -d "$dir" ]; then  # Check if it's a directory
+        size=$(du -s "$dir" | cut -f1)
+        if [ "$size" -ge 6101171 ] && [ "$size" -le 6963200 ]; then  # Size between 5.9 GB and 6.3 GB
+            echo "Deleting $dir"
+            rm -rf "$dir"
+        fi
+    fi
+done`
+
+#### Display size of each directory
+
+`for dir in /home/oconnorlab/Data/2023-11-29/cameras/*; do
+    if [ -d "$dir" ]; then  # Check if it's a directory
+        size=$(du -s "$dir" | cut -f1)
+        echo $size
+    fi
+done
+`
