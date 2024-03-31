@@ -18,6 +18,8 @@ from record_multi_cam_params import (
     FILETYPE,
     MIN_BATCH_INTERVAL,
 )
+import cv2
+import numpy as np
 
 
 ############################################
@@ -45,39 +47,84 @@ def find_cameras():
 
     Cameras whose serial numbers are not in `CAMERA_NAMES_DICT` are removed from the list of cameras. Change these serial numbers in parameters.py.
     """
+    # serial_id_list = []
+    # for serial_id in CAMERA_NAMES_DICT_COLOR.keys():
+    #     serial_id_list.append(serial_id)
+    # for serial_id in CAMERA_NAMES_DICT_MONO.keys():
+    #     serial_id_list.append(serial_id)
 
     # Factory reset cameras to ensure nodes are rewritable (necessary if they were not properly closed)
     print("Resetting cameras...")
     system = PySpin.System.GetInstance()
     cam_list = system.GetCameras()
-    num_previously_connected_cameras = len(cam_list)
+
+    # device_ids_in_cam_list = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
+    # device_ids_to_remove = [device_id for device_id in device_ids_in_cam_list if device_id not in serial_id_list]
+    # for device_id in device_ids_to_remove:
+    #     cam_list.RemoveBySerial(device_id)
+
     for cam in cam_list:
+
+        # # Skip if not in serial_id_list
+        # if cam.TLDevice.DeviceSerialNumber.GetValue() not in serial_id_list:
+        #     continue
+
+        # Reset camera
         cam.Init()
         cam.DeviceReset()
         del cam
 
     # Wait until cameras are reconnected
-    while True:
-        print("Waiting for cameras to reconnect...")
-        time.sleep(1)
+    time.sleep(5)
+    cam_list = system.GetCameras()
 
-        # Find cameras
-        system = PySpin.System.GetInstance()
-        cam_list = system.GetCameras()
+    # for device_id in device_ids_to_remove:
+    #     cam_list.RemoveBySerial(device_id)
 
-        if len(cam_list) == num_previously_connected_cameras:
-            break
+    # old_cam_list = system.GetCameras()
+    # cam_list = [cam for cam in old_cam_list if cam.TLDevice.DeviceSerialNumber.GetValue() in serial_id_list]
+    # old_cam_list.Clear()
 
-    # Remove cameras from cam_list if they are not in CAMERA_NAMES_DICT
-    serial_numbers = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
-    for serial_number in serial_numbers:
-        if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (
-            serial_number not in CAMERA_NAMES_DICT_MONO.keys()
-        ):
-            cam_list.RemoveBySerial(serial_number)
+    # # Remove cameras from cam_list if they are not in serial_id_list
+
+    # for cam in cam_list:
+
+    #     # Ensure is in camera dict
+    #     device_serial_number = cam.TLDevice.DeviceSerialNumber.GetValue()
+    #     if (device_serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (
+    #         device_serial_number not in CAMERA_NAMES_DICT_MONO.keys()
+    #     ):
+    #         cam_list.RemoveBySerial(device_serial_number)
+    #     if (
+    #         cam.TLDevice.DeviceSerialNumber.GetValue() in CAMERA_NAMES_DICT_COLOR.keys()
+    #         or cam.TLDevice.DeviceSerialNumber.GetValue() in CAMERA_NAMES_DICT_MONO.keys()
+    #     ):
+    #         cam.Init()
+    #         cam.DeviceReset()
+    #         del cam
+
+    # Wait until cameras are reconnected
+    # while True:
+    #     print("Waiting for cameras to reconnect...")
+    #     time.sleep(1)
+
+    #     # Find cameras
+    #     system = PySpin.System.GetInstance()
+    #     cam_list = system.GetCameras()
+
+    #     if len(cam_list) == num_previously_connected_cameras:
+    #         break
+
+    # # Remove cameras from cam_list if they are not in CAMERA_NAMES_DICT
+    # serial_numbers = [cam.TLDevice.DeviceSerialNumber.GetValue() for cam in cam_list]
+    # for serial_number in serial_numbers:
+    #     if (serial_number not in CAMERA_NAMES_DICT_COLOR.keys()) and (
+    #         serial_number not in CAMERA_NAMES_DICT_MONO.keys()
+    #     ):
+    #         cam_list.RemoveBySerial(serial_number)
 
     # Print camera serials and names
-    num_cameras = cam_list.GetSize()
+    num_cameras = len(cam_list)
     print("Cameras to be used: ", num_cameras)
     for cam in cam_list:
         serial_number = cam.TLDevice.DeviceSerialNumber.GetValue()
@@ -173,7 +220,18 @@ def release_cameras(cam_list, system):
 
     This is important to do when the program closes or else you might need to reset (unplug) the cameras.
     """
+    # cam_list = system.GetCameras()
+
+    # # Remove cams by ID
+    # serial_id_list = []
+    # for cam in cam_list:
+    #     serial_id_list.append(cam.TLDevice.DeviceSerialNumber.GetValue())
+
+    # for serial_id in serial_id_list:
+    #     cam_list.RemoveBySerial(serial_id)
+
     cam_list.Clear()
+    del cam_list
     system.ReleaseInstance()
     print("\nCameras and system released.")
 
@@ -183,7 +241,7 @@ def release_cameras(cam_list, system):
 ########################
 
 
-def acquire_images(cam, image_queue):
+def acquire_images(cam, image_queue_list):
     """
     Acquires images from the camera buffer and places them in the image_queue.
 
@@ -204,6 +262,14 @@ def acquire_images(cam, image_queue):
         print("[{}] Acquiring images...".format(device_user_ID))
 
         while KEEP_ACQUIRING_FLAG:
+
+            # Add end of batch signal to image_queue
+            time_since_last_image = time.time() - curr_image_timestamp
+            if (frame_idx > 0) and (time_since_last_image > MIN_BATCH_INTERVAL):
+                for q in image_queue_list:
+                    q.put(("end_of_batch", "end_of_batch", "end_of_batch"))
+                frame_idx = 0  # Reset frame_idx to send "end_of_batch" signal only once
+
             # Use try/except to handle timeout error (no image found within GRAB_TIMEOUT))
             try:
                 # Test if images have filled the camera buffer beyond capacity
@@ -249,7 +315,9 @@ def acquire_images(cam, image_queue):
                 else:
                     # Add grabbed image to queue, which will be saved by saver threads
                     image_copy = PySpin.Image.Create(image_result)
-                    image_queue.put((frame_idx, image_copy))
+                    # image_queue.put((frame_idx, image_copy))
+                    for q in image_queue_list:
+                        q.put((image_copy, frame_idx, batch_dir_name))
                     image_result.Release()
                     frame_idx += 1
 
@@ -264,6 +332,148 @@ def acquire_images(cam, image_queue):
     except PySpin.SpinnakerException as ex:
         print("Error: %s" % ex)
         return
+
+
+def save_mp4(cam_name, image_queue, save_location):
+    """Saves images that are in the image_queue to a mp4 file."""
+
+    # Video parameters
+    codec = "mp4v"
+    FPS = 100.0
+    WIDTH = 960
+    HEIGHT = 960
+
+    while (KEEP_ACQUIRING_FLAG == True) or (image_queue.qsize() > 0):
+
+        frame_count = -1
+        while True:
+
+            # Get frame from image_queue
+            try:
+                frame_copy, frame_idx, batch_dir = image_queue.get(block=False)
+
+                frame_count += 1
+            except:
+                time.sleep(0.001)  # Allow other threads to run
+                continue
+
+            # Handle different types of values sent to queue
+            if type(frame_copy) == type(None):
+                break  # Exit loop if "None" is received
+            elif type(frame_copy) == type("end_of_batch"):
+                out.release()
+                break
+            elif type(frame_copy) == PySpin.ImagePtr:
+
+                # Convert to numpy array
+                frame = frame_copy.GetNDArray()  # Convert to numpy array
+
+                # Debayer
+                if cam_name in CAMERA_NAMES_DICT_COLOR.values():
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BayerRG2RGB)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+
+            else:
+                raise ValueError("Frame is not None, 'end_of_batch', or PySpin.Image")
+
+            # If first frame, create video writer
+            if frame_count == 0:
+                time_start = time.time()
+
+                fourcc = cv2.VideoWriter_fourcc(*codec)
+                savename = Path(save_location, batch_dir[:10], "cameras", batch_dir, f"{cam_name}.mp4")
+                savename.parent.mkdir(parents=True, exist_ok=True)
+                out = cv2.VideoWriter(str(savename), fourcc, FPS, (WIDTH, HEIGHT), isColor=False)
+
+            # Add frame to video
+            if type(frame) == np.ndarray:
+                out.write(frame)
+
+            # # If last frame, release video writer
+            # if type(frame) == type("end_of_batch"):
+
+            #     if frame == "end_of_batch":
+            #         out.release()
+            #         print(f"Saved {frame_count} frames in {time.time() - time_start} s")
+            #     else:
+            #         raise ValueError("Frame is not 'end_of_batch' or np.ndarray")
+
+            #     # Exit loop at end of batch
+            #     break
+
+
+# def save_images_as_video(cam_name, image_queue, save_location):
+#     """
+#     Saves images that are in the image_queue.
+#     """
+#     import cv2
+
+#     while True:
+
+#         # Add images to mp4
+#         VIDEO_FPS = 100.0
+#         width = 960
+#         height = 960
+#         video_path = Path(save_location, "cam-" + cam_name + ".mp4")
+#         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+#         video_writer = cv2.VideoWriter(str(video_path), fourcc, VIDEO_FPS, (width, height))
+
+#         # Collect frames
+#         frame_list = []
+
+#         while True:
+
+#             try:
+#                 frame_idx, image = image_queue.get()
+#             except:
+#                 time.sleep(0.005)
+#                 continue
+
+#             if image == "end_of_trial":
+#                 break
+#             elif image == None:
+#                 stop_flag = True
+
+#             # Exit loop if "None" is received
+#             if image is None:
+#                 break
+
+
+# def save_images_as_video(cam_name, image_queue, save_location):
+#     """Saves images as an mp4 video."""
+
+#     continue_saving_flag = True
+#     while continue_saving_flag:
+
+#         # Add images to mp4
+#         VIDEO_FPS = 100.0
+#         width = 960
+#         height = 960
+#         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+#         # Get images from queue until "Last-of-batch" is received
+#         frame_idx_list = []
+#         image_list = []
+#         while True:
+
+
+#             try:
+#                 frame_idx, image = image_queue.get()
+#             except:
+#                 time.sleep(0.005)
+#                 continue
+
+#             # Exit loop if "None" is received
+#             if image is None:
+#                 continue_saving_flag = False
+#                 break
+#             elif image == "Last-of-batch":
+
+#                 break
+
+#             # Add image to list
+#             frame_idx_list.append(frame_idx)
+#             image_list.append(image)
 
 
 def save_images(cam_name, image_queue, save_location):
@@ -325,13 +535,13 @@ def queue_counter(image_queues):
         # print(" Image queue lengths:" + "".join(queue_lengths), end="\r")
         msg = ""
         for idx, q in enumerate(image_queues):
-            if q.qsize() > 5:
+            if q.qsize() > 50:
                 msg += " Queue #" + str(idx) + ": " + str(q.qsize()).zfill(5)
         if msg != "":
             print(" Image queue lengths:" + msg, end="\r")
 
 
-def print_previous_batch_size():
+def print_previous_batch_size(cam_names):
     """
     Prints the number of files saved in a batch directory once the batch is complete.
 
@@ -354,32 +564,45 @@ def print_previous_batch_size():
             and (batch_dir_name not in batches_already_reported)
             and (batch_dir_path.exists())
         ):
+
+            # Give time for mp4 to be written fully
+            time.sleep(0.25)
+
             # Construct output message listing the number of images saved for each camera.
             output = "\n"
             output += "*" * 30
             output += "\nBatch: " + batch_dir_name
 
-            # Append the number of images saved for each camera
-            for cam_name in CAMERA_NAMES_DICT_COLOR.values():
-                cam_subdir = Path(batch_dir_path, cam_name)
-                file_list = list(cam_subdir.iterdir())
-                num_files = len(file_list)
-                output += "\n" + cam_name + ": " + str(num_files) + " images saved."
+            # # Append the number of images saved for each camera
+            # for cam_name in CAMERA_NAMES_DICT_COLOR.values():
+            #     cam_subdir = Path(batch_dir_path, cam_name)
+            #     file_list = list(cam_subdir.iterdir())
+            #     num_files = len(file_list)
+            #     output += "\n" + cam_name + ": " + str(num_files) + " images saved."
 
-            # Append the number of images saved for each camera
-            for cam_name in CAMERA_NAMES_DICT_MONO.values():
-                cam_subdir = Path(batch_dir_path, cam_name)
-                file_list = list(cam_subdir.iterdir())
-                num_files = len(file_list)
-                output += "\n" + cam_name + ": " + str(num_files) + " images saved."
+            # # Append the number of images saved for each camera
+            # for cam_name in CAMERA_NAMES_DICT_MONO.values():
+            #     cam_subdir = Path(batch_dir_path, cam_name)
+            #     file_list = list(cam_subdir.iterdir())
+            #     num_files = len(file_list)
+            #     output += "\n" + cam_name + ": " + str(num_files) + " images saved."
 
-            # Append estimated framerate
-            file_list.sort()
-            num_files = len(file_list)
-            first_file_savetime = file_list[0].stat().st_mtime
-            last_file_savetime = file_list[-1].stat().st_mtime
-            estimated_framerate = num_files / (last_file_savetime - first_file_savetime)
-            output += "\nEstimated framerate: " + str(round(estimated_framerate, 1)) + " fps"
+            # Append the number of images saved for each mp4
+            for cam_name in cam_names:
+                mp4_path = Path(batch_dir_path, cam_name + ".mp4")
+                # Open mp4 file and get number of frames
+                cap = cv2.VideoCapture(str(mp4_path))
+                num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                cap.release()
+                output += "\n" + cam_name + ": " + str(num_frames) + " images saved."
+
+            # # Append estimated framerate
+            # file_list.sort()
+            # num_files = len(file_list)
+            # first_file_savetime = file_list[0].stat().st_mtime
+            # last_file_savetime = file_list[-1].stat().st_mtime
+            # estimated_framerate = num_files / (last_file_savetime - first_file_savetime)
+            # output += "\nEstimated framerate: " + str(round(estimated_framerate, 1)) + " fps"
             print(output)
 
             # Print remaining space on hard drive
@@ -387,6 +610,76 @@ def print_previous_batch_size():
 
             # Update for subsequent loops
             batches_already_reported.append(batch_dir_name)
+
+
+def display_images_in_queues(image_queues_display):
+
+    IMG_WIDTH = 960
+    IMG_HEIGHT = 960
+
+    while KEEP_ACQUIRING_FLAG:
+
+        # Allow time on other threads
+        time.sleep(0.05)
+
+        last_image_list = []
+
+        # Wait until first image is received in each queue
+        all_queues_nonempty = True
+        for q in image_queues_display:
+            if q.qsize() == 0:
+                all_queues_nonempty = False
+
+        if all_queues_nonempty == False:
+            continue
+
+        # Get last image from each queue
+        for q in image_queues_display:
+
+            while True:
+                try:
+                    frame_copy, frame_idx, batch_dir = q.get(block=False)
+                except:
+                    break
+
+            # Exit loop if "None" is received
+            if frame_copy is None:
+                break
+            elif type(frame_copy) == type("end_of_batch"):
+                break
+            elif type(frame_copy) == PySpin.ImagePtr:
+                frame = frame_copy.GetNDArray()
+            else:
+                raise ValueError("Frame is not None, 'end_of_batch', or PySpin.Image")
+
+            last_image_list.append(frame)
+
+        # Resize images
+        new_height = IMG_HEIGHT // 3
+        new_width = IMG_WIDTH // 3
+        for idx, image in enumerate(last_image_list):
+            last_image_list[idx] = cv2.resize(image, (new_width, new_height))
+
+        # Display images
+        tiled_image = np.zeros((new_height * 2, new_width * 3), dtype=np.uint8)
+        for idx, image in enumerate(last_image_list):
+            row = idx // 3
+            col = idx % 3
+            tiled_image[row * new_height : (row + 1) * new_height, col * new_width : (col + 1) * new_width] = image
+
+        tiled_image = tiled_image.astype(np.uint8)
+
+        # Use cv2 to plot random static image
+        # static_image = np.random.randint(0, 255, (IMG_HEIGHT, IMG_WIDTH)).astype(np.uint8)
+        # cv2.imshow("Static image", static_image)
+
+        cv2.imshow("4FPS Stream", tiled_image)
+
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    cv2.destroyAllWindows()
+    print("Display tile thread joined")
 
 
 #####################
@@ -413,33 +706,61 @@ def record_high_bandwidth_video(cam_list, system):
         # Create lists for acquisition threads, saving threads, and image queues
         acquisition_threads = []
         saving_threads = []
-        image_queues = []
+        image_queues_saving = []
+        image_queues_display = []
+
+        cam_names = []
 
         for cam in cam_list:
-            # Add a new image_queue
-            image_queues.append(queue.Queue())
 
-            # Create multiple saving threads for each camera, targeting the most recent image_queue
-            for _ in range(NUM_THREADS_PER_CAM):
-                saving_thread = threading.Thread(
-                    target=save_images,
-                    args=(cam.DeviceUserID(), image_queues[-1], SAVE_LOCATION),
-                )
-                saving_thread.start()
-                saving_threads.append(saving_thread)
+            # Get camera name
+            serial = cam.TLDevice.DeviceSerialNumber.GetValue()
+            if serial in CAMERA_NAMES_DICT_COLOR.keys():
+                cam_names.append(CAMERA_NAMES_DICT_COLOR[serial])
+            elif serial in CAMERA_NAMES_DICT_MONO.keys():
+                cam_names.append(CAMERA_NAMES_DICT_MONO[serial])
+            else:
+                print("WARNING: Camera serial number not in CAMERA_NAMES_DICT_COLOR or CAMERA_NAMES_DICT_MONO.")
+
+            # Add a new image_queue
+            image_queues_saving.append(queue.Queue())  # Save and display
+            image_queues_display.append(queue.Queue())
+
+            # # Create multiple saving threads for each camera, targeting the most recent image_queue
+            # for _ in range(NUM_THREADS_PER_CAM):
+            #     saving_thread = threading.Thread(
+            #         target=save_images,
+            #         args=(cam.DeviceUserID(), image_queues[-1], SAVE_LOCATION),
+            #     )
+            #     saving_thread.start()
+            #     saving_threads.append(saving_thread)
+
+            # Create single saving thread for each camera as mp4
+            saving_thread = threading.Thread(
+                target=save_mp4, args=(cam.DeviceUserID(), image_queues_saving[-1], SAVE_LOCATION)
+            )
+            saving_thread.start()
+            saving_threads.append(saving_thread)
 
             # Create an acquisition thread for each camera, which places images into the most recent image_queue
-            acquisition_thread = threading.Thread(target=acquire_images, args=(cam, image_queues[-1]))
+            acquisition_thread = threading.Thread(
+                target=acquire_images, args=(cam, [image_queues_saving[-1], image_queues_display[-1]])
+            )
+            # acquisition_thread = threading.Thread(target=acquire_images, args=(cam, [image_queues_saving[-1]]))
             acquisition_thread.start()
             acquisition_threads.append(acquisition_thread)
 
+        # Create display thread
+        display_thread = threading.Thread(target=display_images_in_queues, args=(image_queues_display,))
+        display_thread.start()
+
         # Create the queue counter, which prints the size of each image queue
         time.sleep(0.5)
-        queue_counter_thread = threading.Thread(target=queue_counter, args=([image_queues]))
+        queue_counter_thread = threading.Thread(target=queue_counter, args=([image_queues_saving]))
         queue_counter_thread.start()
 
         # Create the print_previous_batch_size thread, which prints the number of saved images in each batch
-        print_previous_batch_size_thread = threading.Thread(target=print_previous_batch_size)
+        print_previous_batch_size_thread = threading.Thread(target=print_previous_batch_size, args=(cam_names,))
         print_previous_batch_size_thread.start()
 
         ######################################################
@@ -464,13 +785,13 @@ def record_high_bandwidth_video(cam_list, system):
         print("Finished acquiring images...")
         del cam  # Release the reference to the camera. Important according to FLIR docs.
 
-        # Cleanly stop and release cameras
-        release_cameras(cam_list, system)
+        # # Cleanly stop and release cameras
+        # release_cameras(cam_list, system)
 
         # Pass None to image queues to signal the end of saving
-        for q in image_queues:
+        for q in image_queues_saving:
             for _ in range(NUM_THREADS_PER_CAM):
-                q.put((None, None))
+                q.put((None, None, None))
 
         # This block prevents ctrl+c from closing the program before images have finished saving.
         while SAVING_DONE_FLAG is False:
@@ -491,11 +812,13 @@ def record_high_bandwidth_video(cam_list, system):
         print("Finished saving images.")
         print(" " * 80)
 
+        display_thread.join()
+
     except PySpin.SpinnakerException as ex:
         print("Error: %s" % ex)
 
-        # Cleanly stop and release cameras
-        release_cameras(cam_list, system)
+        # # Cleanly stop and release cameras
+        # release_cameras(cam_list, system)
         return
 
 
@@ -506,8 +829,8 @@ def record_high_bandwidth_video(cam_list, system):
 
 def get_remaining_space():
     """Returns the remaining space on the hard drive in GB."""
-    total_space = psutil.disk_usage("/").total
-    used_space = psutil.disk_usage("/").used
+    total_space = psutil.disk_usage(str(SAVE_LOCATION)).total
+    used_space = psutil.disk_usage(str(SAVE_LOCATION)).used
     remaining_space = total_space - used_space
     return round(remaining_space / 1e9, 2)
 
@@ -525,16 +848,60 @@ if __name__ == "__main__":
     # Check hard drive space
     check_hard_drive_space()
 
-    # Identify connected cameras
+    # Identify connected cameras and reset them
     cam_list, system, num_cameras = find_cameras()
 
+    # Split cameras into high_speed and overhead
+    # CAM_OVERHEAD_SERIAL = "23398261"
+    # cam_overhead = cam_list.GetBySerial(CAM_OVERHEAD_SERIAL)
+    # cam_high_speed_list = [cam for cam in cam_list if cam.TLDevice.DeviceSerialNumber.GetValue() != CAM_OVERHEAD_SERIAL]
+    cam_high_speed_list = []
+    for c in cam_list:
+        # Test serial number
+        serial = c.TLDevice.DeviceSerialNumber.GetValue()
+        if serial in CAMERA_NAMES_DICT_COLOR.keys() or serial in CAMERA_NAMES_DICT_MONO.keys():
+            cam_high_speed_list.append(c)
+
     if num_cameras != 0:
+
         # Initialize and set imaging parameters
-        result = set_camera_params(cam_list)
+        result = set_camera_params(cam_high_speed_list)
 
         # Acquire and save images using multiple threads; loops until ctrl+c
         if result:
-            record_high_bandwidth_video(cam_list, system)
 
+            from record_single_cam import record_overhead
+            from queue import Queue
+
+            queue_A = Queue()
+            queue_B = Queue()
+            stop_event = threading.Event()
+            # record_thread = threading.Thread(target=record_overhead, args=(cam_overhead, queue_A, queue_B, stop_event))
+            # record_thread.start()
+
+            # overhead_thread = threading.Thread(target=record_overhead, args=(cam_overhead,))
+            record_high_bandwidth_video(cam_high_speed_list, system)
+
+            # Stop overhead thread
+            stop_event.set()
+            queue_A.put(None)
+            queue_B.put(None)
+            cv2.destroyAllWindows()
+            # record_thread.join()
+
+            if cam_overhead.IsValid():
+                cam_overhead.DeInit()
+                del cam_overhead
+
+            for cam in cam_high_speed_list:
+                cam.DeInit()
+                del cam
+            del cam_high_speed_list
+
+            # for cam in cam_list:
+            #     cam.DeInit()
+            #     del cam
+
+            release_cameras(cam_list, system)
     else:
         print("No cameras found. Exiting.")

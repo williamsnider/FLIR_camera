@@ -23,6 +23,16 @@ def debayer_image(filename):
     # cv2.imwrite('debayered_image.png', debayered_img)
     return grayscale_img
 
+def debayer_dir(input_dir):
+    images_to_debayer = list(input_dir.glob("*.bmp"))
+    save_dir = Path(str(input_dir).replace(".", "-debayered."))
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    for filename in images_to_debayer:
+        debayered = debayer_image(filename)
+
+        savename = Path(save_dir, filename.name.replace(".", "-debayered."))
+        cv2.imwrite(str(savename), debayered)
 
 if __name__ == "__main__":
     images_to_debayer = []
