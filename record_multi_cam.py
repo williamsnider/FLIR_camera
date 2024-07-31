@@ -24,7 +24,6 @@ from record_multi_cam_params import (
 import cv2
 import numpy as np
 
-
 ############################################
 ### Global variables used across threads ###
 ############################################

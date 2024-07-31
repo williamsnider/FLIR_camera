@@ -7,6 +7,7 @@ import cv2
 import os
 from tqdm import tqdm
 import multiprocessing
+from record_multi_cam_params import SAVE_LOCATION
 
 
 def find_unchanged_mp4s(trials_dir):
@@ -101,7 +102,7 @@ if __name__ == "__main__":
 
     YYYY_MM_DD = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d")
 
-    TRIALS_DIR = Path("/mnt/Data4TB", YYYY_MM_DD, "cameras")
+    TRIALS_DIR = Path(SAVE_LOCATION, YYYY_MM_DD, "cameras")
 
     while True:
         time.sleep(1)
