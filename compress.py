@@ -7,7 +7,6 @@ import cv2
 import os
 from tqdm import tqdm
 import multiprocessing
-from record_multi_cam_params import SAVE_LOCATION
 
 
 def find_unchanged_mp4s(trials_dir):
@@ -55,6 +54,7 @@ def compress_mp4(mp4_filename, cq=34, preset="slow"):
     cmd_string = (
         f"nice -n -19 ffmpeg -y -hwaccel cuda -i {input_name} -c:v h264_nvenc -cq {cq} -preset {preset} {output_name}"
     )
+    print(cmd_string)
 
     output = subprocess.run(
         cmd_string,
@@ -101,6 +101,7 @@ if __name__ == "__main__":
     CQ = 30
 
     YYYY_MM_DD = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d")
+    SAVE_LOCATION = "/mnt/Data4TB"
 
     TRIALS_DIR = Path(SAVE_LOCATION, YYYY_MM_DD, "cameras")
 

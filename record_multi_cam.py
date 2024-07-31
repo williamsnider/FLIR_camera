@@ -20,9 +20,11 @@ from record_multi_cam_params import (
     VIDEO_FPS,
     VIDEO_WIDTH,
     VIDEO_HEIGHT,
+    CAMERA_OVERHEAD_LIST,
 )
 import cv2
 import numpy as np
+from record_single_cam import record_overhead
 
 ############################################
 ### Global variables used across threads ###
@@ -127,7 +129,6 @@ def find_cameras():
 
     # Print camera serials and names
     num_cameras = len(cam_list)
-    print("Cameras to be used: ", num_cameras)
     for cam in cam_list:
         serial_number = cam.TLDevice.DeviceSerialNumber.GetValue()
         if serial_number in CAMERA_NAMES_DICT_COLOR.keys():
@@ -216,7 +217,7 @@ def set_camera_params(cam_list):
     return result
 
 
-def release_cameras(cam_list, system):
+def release_cameras(cam_lists, system):
     """
     Cleanly releases the cameras and system.
 
@@ -232,8 +233,18 @@ def release_cameras(cam_list, system):
     # for serial_id in serial_id_list:
     #     cam_list.RemoveBySerial(serial_id)
 
-    cam_list.Clear()
-    del cam_list
+    for cam_list in cam_lists:
+        for cam in cam_list:
+            cam.DeInit()
+            del cam
+
+        try:
+            cam_list.Clear()
+        finally:
+            del cam_list
+
+    del cam_lists
+
     system.ReleaseInstance()
     print("\nCameras and system released.")
 
@@ -478,48 +489,48 @@ def save_mp4(cam_name, image_queue, save_location):
 #             image_list.append(image)
 
 
-def save_images(cam_name, image_queue, save_location):
-    """
-    Saves images that are in the image_queue.
+# def save_images(cam_name, image_queue, save_location):
+#     """
+#     Saves images that are in the image_queue.
 
-    Loops infinitely until it receives a "None" in the queue, then returns.
-    """
+#     Loops infinitely until it receives a "None" in the queue, then returns.
+#     """
 
-    while True:
-        try:
-            frame_idx, image = image_queue.get()
-        except:
-            time.sleep(0.001)  # Allow time on other threads
-            continue
+#     while True:
+#         try:
+#             frame_idx, image = image_queue.get()
+#         except:
+#             time.sleep(0.001)  # Allow time on other threads
+#             continue
 
-        # Exit loop if "None" is received
-        if image is None:  # No more images
-            break
+#         # Exit loop if "None" is received
+#         if image is None:  # No more images
+#             break
 
-        # Construct filename
-        # frame_id = str(image.GetFrameID())
-        frame_id = str(frame_idx)  # Resets for each batch, unlike image.GetFrameID()
-        frame_id = frame_id.zfill(6)  # pad frame id with zeros to order correctly
-        filename = SAVE_PREFIX + "-" + cam_name + "-" + frame_id + FILETYPE
+#         # Construct filename
+#         # frame_id = str(image.GetFrameID())
+#         frame_id = str(frame_idx)  # Resets for each batch, unlike image.GetFrameID()
+#         frame_id = frame_id.zfill(6)  # pad frame id with zeros to order correctly
+#         filename = SAVE_PREFIX + "-" + cam_name + "-" + frame_id + FILETYPE
 
-        # Construct batch/camera directory
-        date_dir = batch_dir_name[:10] + "/cameras"
-        cam_dir_path = Path(save_location, date_dir, batch_dir_name, cam_name)
-        cam_dir_path.mkdir(parents=True, exist_ok=True)
+#         # Construct batch/camera directory
+#         date_dir = batch_dir_name[:10] + "/cameras"
+#         cam_dir_path = Path(save_location, date_dir, batch_dir_name, cam_name)
+#         cam_dir_path.mkdir(parents=True, exist_ok=True)
 
-        # Construct full filepath
-        filepath = Path(cam_dir_path, filename)
+#         # Construct full filepath
+#         filepath = Path(cam_dir_path, filename)
 
-        # Save image
+#         # Save image
 
-        # output = image.GetNDArray()
-        # cv2.imwrite(str(filepath), output)
+#         # output = image.GetNDArray()
+#         # cv2.imwrite(str(filepath), output)
 
-        # output = image.GetNDArray()
-        # img = Image.fromarray(output)
-        # img.save(filepath)
+#         # output = image.GetNDArray()
+#         # img = Image.fromarray(output)
+#         # img.save(filepath)
 
-        image.Save(str(filepath))
+#         image.Save(str(filepath))
 
 
 def queue_counter(image_queues):
@@ -846,6 +857,35 @@ def check_hard_drive_space():
         print("WARNING: Less than 100 GB of free space on the hard drive.")
 
 
+def split_cameras_into_overhead_and_high_speed(cam_list):
+
+    using_cam_overhead = False
+    if len(CAMERA_OVERHEAD_LIST) == 0:
+        using_cam_overhead = False
+        print("Not using overhead camera")
+    elif len(CAMERA_OVERHEAD_LIST) == 1:
+        using_cam_overhead = True
+        cam_overhead_serial = CAMERA_OVERHEAD_LIST[0]
+        print("Using overhead camera")
+    else:
+        print("Error: More than one overhead camera serial number given.")
+
+    # Split cameras into high_speed and overhead
+    if using_cam_overhead:
+        cam_overhead = cam_list.GetBySerial(cam_overhead_serial)
+
+    cam_high_speed_list = []
+    for c in cam_list:
+        # Test serial number
+        serial = c.TLDevice.DeviceSerialNumber.GetValue()
+        if serial in CAMERA_NAMES_DICT_COLOR.keys() or serial in CAMERA_NAMES_DICT_MONO.keys():
+            assert serial != cam_overhead_serial, "Error: Overhead camera serial number is in high-speed camera list."
+            cam_high_speed_list.append(c)
+    del c  # Necessary to release reference to camera at end of script
+
+    return cam_high_speed_list, cam_overhead, using_cam_overhead
+
+
 if __name__ == "__main__":
     # Check hard drive space
     check_hard_drive_space()
@@ -853,60 +893,49 @@ if __name__ == "__main__":
     # Identify connected cameras and reset them
     cam_list, system, num_cameras = find_cameras()
 
-    # Split cameras into high_speed and overhead
-    # CAM_OVERHEAD_SERIAL = "23398261"
-    # cam_overhead = cam_list.GetBySerial(CAM_OVERHEAD_SERIAL)
-    # cam_high_speed_list = [cam for cam in cam_list if cam.TLDevice.DeviceSerialNumber.GetValue() != CAM_OVERHEAD_SERIAL]
-
-    cam_high_speed_list = []
-    for c in cam_list:
-        # Test serial number
-        serial = c.TLDevice.DeviceSerialNumber.GetValue()
-        if serial in CAMERA_NAMES_DICT_COLOR.keys() or serial in CAMERA_NAMES_DICT_MONO.keys():
-            cam_high_speed_list.append(c)
+    # Split cam_list into overhead (software triggered) and high_speed (hardware triggered) cameras
+    cam_high_speed_list, cam_overhead, using_cam_overhead = split_cameras_into_overhead_and_high_speed(cam_list)
 
     if num_cameras != 0:
 
         # Initialize and set imaging parameters
         result = set_camera_params(cam_high_speed_list)
 
-        # Acquire and save images using multiple threads; loops until ctrl+c
-        if result:
-
-            from record_single_cam import record_overhead
-            from queue import Queue
-
-            queue_A = Queue()
-            queue_B = Queue()
+        # Initialize overhead camera
+        if using_cam_overhead:
+            queue_A = queue.Queue()
+            queue_B = queue.Queue()
             stop_event = threading.Event()
-            # record_thread = threading.Thread(target=record_overhead, args=(cam_overhead, queue_A, queue_B, stop_event))
-            # record_thread.start()
+            record_thread = threading.Thread(target=record_overhead, args=(cam_overhead, queue_A, queue_B, stop_event))
+            record_thread.start()
 
-            # overhead_thread = threading.Thread(target=record_overhead, args=(cam_overhead,))
-            record_high_bandwidth_video(cam_high_speed_list, system)
+        # Acquire and save images using multiple threads; loops until ctrl+c
+        record_high_bandwidth_video(cam_high_speed_list, system)
 
-            # Stop overhead thread
+        # Stop overhead thread
+        if using_cam_overhead:
             stop_event.set()
             queue_A.put(None)
             queue_B.put(None)
             cv2.destroyAllWindows()
-            # record_thread.join()
+            record_thread.join()
 
-            # # Release overhead camera
-            # if cam_overhead.IsValid():
-            #     cam_overhead.DeInit()
-            #     del cam_overhead
+            # Release overhead camera
+            if cam_overhead.IsValid():
+                cam_overhead.DeInit()
+                del cam_overhead
 
-            for cam in cam_high_speed_list:
-                cam.DeInit()
-                del cam
-            del cam_high_speed_list
+        # Remove references to high_speed_cameras
+        for cam in cam_high_speed_list:
+            cam.DeInit()
+            del cam
+        del cam_high_speed_list
 
-            for cam in cam_list:
-                cam.DeInit()
-                del cam
+        # for cam in cam_list:
+        #     cam.DeInit()
+        #     del cam
 
-            # TODO: Figure out why overhead_cam is causing errors with releasing camera and system instance.
-            release_cameras(cam_list, system)
+        # TODO: Figure out why overhead_cam is causing errors with releasing camera and system instance.
+        release_cameras([cam_list], system)
     else:
         print("No cameras found. Exiting.")
