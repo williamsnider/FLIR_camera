@@ -15,8 +15,11 @@ from record_multi_cam_params import (
     SAVE_PREFIX,
     GRAB_TIMEOUT,
     NUM_THREADS_PER_CAM,
-    FILETYPE,
+    # FILETYPE,
     MIN_BATCH_INTERVAL,
+    VIDEO_FPS,
+    VIDEO_WIDTH,
+    VIDEO_HEIGHT,
 )
 import cv2
 import numpy as np
@@ -339,9 +342,9 @@ def save_mp4(cam_name, image_queue, save_location):
 
     # Video parameters
     codec = "mp4v"
-    FPS = 100.0
-    WIDTH = 960
-    HEIGHT = 960
+    FPS = VIDEO_FPS
+    WIDTH = VIDEO_WIDTH
+    HEIGHT = VIDEO_HEIGHT
 
     while (KEEP_ACQUIRING_FLAG == True) or (image_queue.qsize() > 0):
 
@@ -855,6 +858,7 @@ if __name__ == "__main__":
     # CAM_OVERHEAD_SERIAL = "23398261"
     # cam_overhead = cam_list.GetBySerial(CAM_OVERHEAD_SERIAL)
     # cam_high_speed_list = [cam for cam in cam_list if cam.TLDevice.DeviceSerialNumber.GetValue() != CAM_OVERHEAD_SERIAL]
+
     cam_high_speed_list = []
     for c in cam_list:
         # Test serial number
@@ -889,19 +893,21 @@ if __name__ == "__main__":
             cv2.destroyAllWindows()
             # record_thread.join()
 
-            if cam_overhead.IsValid():
-                cam_overhead.DeInit()
-                del cam_overhead
+            # # Release overhead camera
+            # if cam_overhead.IsValid():
+            #     cam_overhead.DeInit()
+            #     del cam_overhead
 
             for cam in cam_high_speed_list:
                 cam.DeInit()
                 del cam
             del cam_high_speed_list
 
-            # for cam in cam_list:
-            #     cam.DeInit()
-            #     del cam
+            for cam in cam_list:
+                cam.DeInit()
+                del cam
 
+            # TODO: Figure out why overhead_cam is causing errors with releasing camera and system instance.
             release_cameras(cam_list, system)
     else:
         print("No cameras found. Exiting.")

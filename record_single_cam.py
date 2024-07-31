@@ -1,3 +1,5 @@
+# This file is used to record video from a single, SOFTWARE-TIMED camera. I use this as an overhead webcam type recording. Don't use this for hardware triggered cameras, instead use record_multi_cam.py even if it's just a single camera.
+
 import cv2
 import threading
 from pathlib import Path

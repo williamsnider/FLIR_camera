@@ -5,14 +5,16 @@ SAVE_LOCATION = "/mnt/Data4TB"
 SAVE_PREFIX = ""  # String appended to beginning of each image filename. Can be left blank.
 GRAB_TIMEOUT = 100  # (ms) length of time before cam.GrabNextImage() will timeout and stop hanging
 NUM_THREADS_PER_CAM = 10  # The number of saving threads per camera; each system has different best value
-VIDEO_FPS = 10  # What fps to save the video file as
+VIDEO_FPS = 100.0  # What fps to save the video file as
+VIDEO_WIDTH = 960
+VIDEO_HEIGHT = 960
 # PIXEL_FORMAT = (
 #     PySpin.PixelFormat_BayerRG8
 # )  # What color format to convert from bayer; must match above
-FILETYPE = ".bmp"  #
-QUALITY_LEVEL = (
-    75  # 0 is worst; 95 is best; 100 disbles jpeg compression. Only matters if save_format_extension is jpg.
-)
+# FILETYPE = ".bmp"  #
+# QUALITY_LEVEL = (
+#     75  # 0 is worst; 95 is best; 100 disbles jpeg compression. Only matters if save_format_extension is jpg.
+# )
 MIN_BATCH_INTERVAL = 1  # (s) If time between this and previous image is more than this, a new directory is created (this separates images into directories for each new trial)
 
 
@@ -69,50 +71,50 @@ CAMERA_PARAMS_MONO = [
 
 CAMERA_SPECIFIC_DICT = {
     "23428985": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 248],
         ["OffsetY", 100],
         ["Gain", 25],
     ],
     "19472089": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 472],
         ["OffsetY", 100],
         ["Gain", 25],
     ],
     "19472072": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 400],
         ["OffsetY", 50],
         ["Gain", 25],
     ],
     "23398259": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 300],
         ["OffsetY", 150],
         ["Gain", 25],
     ],
     "23398260": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 400],
         ["OffsetY", 200],
         ["Gain", 25],
     ],
     "23398261": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 548],
         ["OffsetY", 150],
         ["Gain", 25],
     ],
     "24048476": [
-        ["Width", 960],
-        ["Height", 960],
+        ["Width", VIDEO_WIDTH],
+        ["Height", VIDEO_HEIGHT],
         ["OffsetX", 680],
         ["OffsetY", 150],
         ["Gain", 25],
