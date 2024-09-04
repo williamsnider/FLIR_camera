@@ -21,22 +21,23 @@ MIN_BATCH_INTERVAL = 1  # (s) If time between this and previous image is more th
 # Assign custom names to cameras based on their serial numbers. Comment out to ignore that camera.
 
 CAMERA_NAMES_DICT_COLOR = {
-    "19472072": "camTR-orig",
+    # "19472072": "camTR-orig",
     # "19472089": "camBo-orig",
 }  # Indicate which cameras need to be debayered
 
 
 CAMERA_NAMES_DICT_MONO = {
-    "23398259": "camTL-orig",
+    # "23398259": "camTL-orig",
     "23398260": "camBL-orig",
     # "23398261": "camBR-orig",
-    "23428985": "camTo-orig",
-    "24048476": "camBo-orig",
+    # "23428985": "camTo-orig",
+    # "24048476": "camTR-orig",
 }
 
 # Camera for software-triggered, webcam-type view
 CAMERA_OVERHEAD_LIST = [
-    "23398261",
+    # "19472072",
+    # "23398259",
 ]
 
 # According to the API, trigger mode needs to be turned off for other parameters (like TriggerSource) to be changed. For this reason, the order of the items in this list matters. After setting the parameters, TriggerMode is turned back to True.
@@ -62,7 +63,7 @@ CAMERA_PARAMS_MONO = [
     ["DecimationHorizontal", 1],  # 1 is off, 2 is on
     ["DecimationVertical", 1],
     ["ExposureAuto", False],
-    ["ExposureTime", 500],  # us
+    ["ExposureTime", 1000],  # us
     ["GainAuto", False],
     ["PixelFormat", PySpin.PixelFormat_Mono8],  # Which Bayer filter the camera uses
     ["IspEnable", False],  # Necessary to reach max framerate at full resolution
@@ -78,9 +79,9 @@ CAMERA_SPECIFIC_DICT = {
     "23428985": [
         ["Width", VIDEO_WIDTH],
         ["Height", VIDEO_HEIGHT],
-        ["OffsetX", 248],
-        ["OffsetY", 100],
-        ["Gain", 25],
+        ["OffsetX", 652],
+        ["OffsetY", 152],
+        ["Gain", 10],
     ],
     "19472089": [
         ["Width", VIDEO_WIDTH],
@@ -89,18 +90,18 @@ CAMERA_SPECIFIC_DICT = {
         ["OffsetY", 100],
         ["Gain", 25],
     ],
-    "19472072": [
-        ["Width", VIDEO_WIDTH],
-        ["Height", VIDEO_HEIGHT],
-        ["OffsetX", 400],
-        ["OffsetY", 50],
-        ["Gain", 25],
-    ],
+    # "19472072": [
+    #     ["Width", VIDEO_WIDTH],
+    #     ["Height", VIDEO_HEIGHT],
+    #     ["OffsetX", 400],
+    #     ["OffsetY", 50],
+    #     ["Gain", 25],
+    # ],
     "23398259": [
         ["Width", VIDEO_WIDTH],
         ["Height", VIDEO_HEIGHT],
-        ["OffsetX", 300],
-        ["OffsetY", 150],
+        ["OffsetX", 400],
+        ["OffsetY", 100],
         ["Gain", 25],
     ],
     "23398260": [
@@ -108,13 +109,13 @@ CAMERA_SPECIFIC_DICT = {
         ["Height", VIDEO_HEIGHT],
         ["OffsetX", 400],
         ["OffsetY", 200],
-        ["Gain", 25],
+        ["Gain", 10],
     ],
     "23398261": [
         ["Width", VIDEO_WIDTH],
         ["Height", VIDEO_HEIGHT],
-        ["OffsetX", 548],
-        ["OffsetY", 150],
+        ["OffsetX", 400],
+        ["OffsetY", 0],
         ["Gain", 25],
     ],
     "24048476": [

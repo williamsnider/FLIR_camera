@@ -1,5 +1,3 @@
-# This file is used to record video from a single, SOFTWARE-TIMED camera. I use this as an overhead webcam type recording. Don't use this for hardware triggered cameras, instead use record_multi_cam.py even if it's just a single camera.
-
 import cv2
 import threading
 from pathlib import Path
@@ -7,6 +5,7 @@ import time
 import datetime
 from queue import Queue
 import PySpin
+import numpy as np
 
 
 def save_frame_from_queue(queue_A, SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, FPS):
@@ -44,13 +43,11 @@ def save_frame_from_queue(queue_A, SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, FPS):
 
             # Get frame from queue
             item = queue_A.get()
+            frame, frame_time, _ = item
 
             # None is signal to stop thread
-            if item is None:
+            if frame is None:
                 break
-
-            # Save frame to mp4
-            frame, frame_time = item
             frame_as_cv2 = cv2.cvtColor(frame.GetNDArray(), cv2.COLOR_BayerRG2BGR)
             mp4_out.write(frame_as_cv2)
 
@@ -58,15 +55,9 @@ def save_frame_from_queue(queue_A, SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, FPS):
             with open(txt_filename, "a") as file:
                 file.write(frame_time + "\n")
 
-            # # Save frame to file as grayscale
-            # frame, frame_time = item
-            # filename = Path(SAVE_DIR, str(group_number), f"{frame_time}.bmp")
-            # filename.parent.mkdir(parents=True, exist_ok=True)
-            # cv2.imwrite(str(filename), frame)
-
             # Estimate fps
             frame_count += 1
-            if frame_count % 30 == 0:
+            if frame_count % 15 == 0:
                 end_time = time.time()
                 fps = frame_count / (end_time - start_time)
                 print(f"Estimated FPS of saving: {round(fps,3)}", end="\r")
@@ -78,7 +69,6 @@ def save_frame_from_queue(queue_A, SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, FPS):
             # Iterate group number
             group_count += 1
             if group_count > 10000:
-
                 group_number += 1
                 group_count = 0
 
@@ -98,20 +88,73 @@ def save_frame_from_queue(queue_A, SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, FPS):
     finally:
         mp4_out.release()
 
-    # Print number of frames in mp4_out
-    cap = cv2.VideoCapture(str(mp4_filename))
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"Number of frames in {mp4_filename}: {frame_count}")
-
-    # Print number of frames in txt file
-    with open(txt_filename, "r") as file:
-        lines = file.readlines()
-        print(f"Number of frames in {txt_filename}: {len(lines)}")
-
     print("Save thread joined")
 
 
-def display_frame_from_queue(queue_B, IMG_WIDTH, IMG_HEIGHT):
+def display_frame_from_queues(list_of_queue_lists, window_names_list):
+    """Creates windows that display images from queues in real-time."""
+
+    # Create windows
+    for window_name in window_names_list:
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+    # Create list of last frames
+    list_of_last_frame_lists = []
+    for queue_list in list_of_queue_lists:
+        last_frame_list = [np.zeros((480, 640, 3), dtype=np.uint8) for _ in range(len(queue_list))]
+        list_of_last_frame_lists.append(last_frame_list)
+
+    # Loop through each queue
+    continue_looping = True
+    while continue_looping is True:
+
+        for window_idx, queue_list in enumerate(list_of_queue_lists):
+            window_name = window_names_list[window_idx]
+
+            # Collect frames from queues
+            for queue_idx, queue in enumerate(queue_list):
+
+                # Loop until no more frames in queue (prevent display queue from getting too large; we only need to display the most recent frame anyway).
+                while True:
+                    try:
+                        frame, _, _ = queue.get_nowait()
+
+                        # None is signal to stop thread -> exit loop to join thread
+                        if frame is None:
+                            continue_looping = False
+                            break
+
+                        # Convert to numpy
+                        frame = cv2.cvtColor(frame.GetNDArray(), cv2.COLOR_BayerRG2BGR)
+                        # frame = cv2.resize(frame, (IMG_WIDTH // 2, IMG_HEIGHT // 2))  # Resize to fit on screen
+                        list_of_last_frame_lists[window_idx][queue_idx] = frame
+                    except:
+                        break
+
+            # Stack into one image, converting to two rows if necessary
+            img_height, img_width, _ = list_of_last_frame_lists[window_idx][0].shape
+
+            num_queues = len(queue_list)
+            MAX_COLS = 3
+            num_cols = min(num_queues, MAX_COLS)
+            num_rows = np.ceil(num_queues / MAX_COLS).astype(int)
+
+            stacked_frame = np.zeros((img_height * num_rows, img_width * num_cols, 3), dtype=np.uint8)
+            for idx, frame in enumerate(list_of_last_frame_lists[window_idx]):
+                stacked_frame[
+                    img_height * (idx // MAX_COLS) : img_height * ((idx // MAX_COLS) + 1),
+                    img_width * (idx % MAX_COLS) : img_width * ((idx % MAX_COLS) + 1),
+                ] = frame
+
+            cv2.imshow(window_name, stacked_frame)
+
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+        time.sleep(0.001)
+    print(f"Display thread joined for {window_name}")
+
+
+def display_frame_from_queue(queue_B, IMG_WIDTH, IMG_HEIGHT, window_name):
 
     while True:
         frame = queue_B.get()
@@ -120,12 +163,12 @@ def display_frame_from_queue(queue_B, IMG_WIDTH, IMG_HEIGHT):
 
         frame = cv2.cvtColor(frame.GetNDArray(), cv2.COLOR_BayerRG2BGR)
         frame = cv2.resize(frame, (IMG_WIDTH // 2, IMG_HEIGHT // 2))  # Resize to fit on screen
-        cv2.imshow("Webcam Stream", frame)
+        cv2.imshow(window_name, frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
         time.sleep(0.001)
-    print("Display thread joined")
+    print(f"Display thread joined for {window_name}")
 
 
 def join_threads(thread_list):
@@ -133,19 +176,17 @@ def join_threads(thread_list):
         thread.join()
 
 
-def capture_frames(camera, queue_A, queue_B, YYYY_MM_DD, stop_event):
+def capture_frames(camera, queue_list, YYYY_MM_DD, stop_event):
 
     camera.BeginAcquisition()
 
     # Initialize variables to estimate fps
     start_time = time.time()
     frame_count = 0
-    total_frame_count = 0
 
     while not stop_event.is_set():
-
         try:
-            image_result = camera.GetNextImage(100)
+            image_result = camera.GetNextImage(250)
 
             if image_result.IsIncomplete():
                 print("Image incomplete with image status %d ..." % image_result.GetImageStatus())
@@ -157,8 +198,8 @@ def capture_frames(camera, queue_A, queue_B, YYYY_MM_DD, stop_event):
 
                 # Add image to queues
                 image_copy = PySpin.Image.Create(image_result)
-                queue_A.put((image_copy, frame_time))
-                queue_B.put(image_copy)
+                for queue in queue_list:
+                    queue.put((image_copy, frame_time, ""))
 
                 # Ensure to release the image to avoid memory leak
                 image_result.Release()
@@ -169,12 +210,10 @@ def capture_frames(camera, queue_A, queue_B, YYYY_MM_DD, stop_event):
 
         # Estimate fps
         frame_count += 1
-        if frame_count % 30 == 0:
+        if frame_count % 15 == 0:
             end_time = time.time()
             fps = frame_count / (end_time - start_time)
-            # print(f"Estimated FPS of capture: {fps}")
 
-            # Reset variables
             frame_count = 0
             start_time = time.time()
 
@@ -182,125 +221,113 @@ def capture_frames(camera, queue_A, queue_B, YYYY_MM_DD, stop_event):
     print("Capture thread joined")
 
 
-def record_overhead(cam, queue_A, queue_B, stop_event):
+def record_cam_sw(cam, queue_list, stop_event, fps, cam_name):
 
     YYYY_MM_DD = time.strftime("%Y-%m-%d")
-    SAVE_DIR = Path("/mnt/Data4TB", YYYY_MM_DD, "overhead")
+    SAVE_DIR = Path("/mnt/Data4TB", YYYY_MM_DD, cam_name)
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
     IMG_WIDTH = 1920
     IMG_HEIGHT = 1200
-    FPS = 30.0
 
     try:
-        # Initialize camera
         cam.Init()
 
         # Configure camera settings
         cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         cam.AcquisitionFrameRateEnable.SetValue(True)
-        cam.AcquisitionFrameRate.SetValue(30.0)
+        cam.AcquisitionFrameRate.SetValue(fps)
 
     except PySpin.SpinnakerException as ex:
         print("Error: %s" % ex)
         exit()
 
-    thread_capture = threading.Thread(target=capture_frames, args=(cam, queue_A, queue_B, YYYY_MM_DD, stop_event))
-    thread_save = threading.Thread(target=save_frame_from_queue, args=(queue_A, SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, FPS))
-    thread_display = threading.Thread(target=display_frame_from_queue, args=(queue_B, IMG_WIDTH, IMG_HEIGHT))
+    # Start thread that captures frames from camera, placing a copy in each queue.
+    thread_capture = threading.Thread(target=capture_frames, args=(cam, queue_list, YYYY_MM_DD, stop_event))
 
-    thread_list = [thread_capture, thread_save, thread_display]
+    # Start thread that saves frames from queue 0 to disk
+    thread_save = threading.Thread(
+        target=save_frame_from_queue, args=(queue_list[0], SAVE_DIR, IMG_WIDTH, IMG_HEIGHT, fps)
+    )
+
+    thread_list = [thread_capture, thread_save]
 
     for th in thread_list:
         th.start()
 
-    join_threads(thread_list)
-    # try:
-    #     join_threads(thread_list)
-    # except KeyboardInterrupt:
-    #     print("Detected keyboard interrupt")
-    #     queue_A.put(None)
-    #     queue_B.put(None)
-    #     cv2.destroyAllWindows()
-    # finally:
-    #     join_threads(thread_list)
+    join_threads(
+        thread_list,
+    )
 
 
 if __name__ == "__main__":
 
-    CAM_SERIAL = "23398261"
+    CAM_SERIAL_A = "23398259"
+    CAM_SERIAL_B = "23398260"
 
-    # Get system
     system = PySpin.System.GetInstance()
+    cam_list_all = system.GetCameras()
+    camA = cam_list_all.GetBySerial(CAM_SERIAL_A)
+    camB = cam_list_all.GetBySerial(CAM_SERIAL_B)
 
-    # Get camera by serial number
-    cam_list = system.GetCameras()
-    cam = cam_list.GetBySerial(CAM_SERIAL)
+    cam_list_sub = [camA, camB]
 
-    # Factory reset cameras to ensure nodes are rewritable (necessary if they were not properly closed)
-    print(f"Resetting overhead camera {CAM_SERIAL}...")
-    for cam in [cam]:
+    # Reset cameras
+    for cam in cam_list_sub:
         cam.Init()
         cam.DeviceReset()
         del cam
 
-    # Wait until cameras are reconnected
     while True:
-        print(f"Waiting for camera {CAM_SERIAL} to reconnect...")
         time.sleep(5)  # Wait for camera to reconnect
 
         try:
-            cam = cam_list.GetBySerial(CAM_SERIAL)
+            camA = cam_list_all.GetBySerial(CAM_SERIAL_A)
+            camB = cam_list_all.GetBySerial(CAM_SERIAL_B)
             break
         except:
             continue
 
-    queue_A = Queue()
-    queue_B = Queue()
     stop_event = threading.Event()
-    record_thread = threading.Thread(target=record_overhead, args=(cam, queue_A, queue_B, stop_event))
-    record_thread.start()
+
+    queueA_list = [Queue() for _ in range(3)]  # 0th queue is for saving, remainder are for display
+    fps = 20.0
+    record_threadA = threading.Thread(target=record_cam_sw, args=(camA, queueA_list, stop_event, fps, CAM_SERIAL_A))
+    record_threadA.start()
+
+    queueB_list = [Queue() for _ in range(3)]  # 0th queue is for saving, remainder are for display
+    fps = 5.0
+    record_threadB = threading.Thread(target=record_cam_sw, args=(camB, queueB_list, stop_event, fps, CAM_SERIAL_B))
+    record_threadB.start()
+
+    # Start display thread
+    display1 = [queueA_list[1]]
+    display2 = [queueB_list[1]]
+    display3 = [queueA_list[2], queueB_list[2]]
+    display_thread = threading.Thread(
+        target=display_frame_from_queues,
+        args=([display1, display2, display3], [CAM_SERIAL_A, CAM_SERIAL_B, "Combined"]),
+    )
+    display_thread.start()
 
     try:
-        record_thread.join()
+        record_threadA.join()
+        record_threadB.join()
     except KeyboardInterrupt:
-        print("Detected keyboard interrupt")
         stop_event.set()
-        queue_A.put(None)
-        queue_B.put(None)
+        for queue in queueA_list:
+            queue.put((None, None))
+        for queue in queueB_list:
+            queue.put((None, None))
         cv2.destroyAllWindows()
     finally:
-        record_thread.join()
+        record_threadA.join()
+        record_threadB.join()
 
     # Release system instance
-    cam.DeInit()
-    del cam
-    cam_list.Clear()
+    camA.DeInit()
+    camB.DeInit()
+    del camA
+    del camB
+    del cam_list_sub
+    cam_list_all.Clear()
     system.ReleaseInstance()
-
-
-# def acquire_images(camera, num_images):
-#     camera.BeginAcquisition()
-
-#     start_time = time.time()
-#     for i in range(num_images):
-#         try:
-#             image_result = camera.GetNextImage(1000)
-
-#             if image_result.IsIncomplete():
-#                 print("Image incomplete with image status %d ..." % image_result.GetImageStatus())
-#             else:
-#                 # You can process the image here
-
-#                 print("Acquired image %d" % i)
-
-#                 # Ensure to release the image to avoid memory leak
-#                 image_result.Release()
-
-#         except PySpin.SpinnakerException as ex:
-#             print("Error: %s" % ex)
-#             return False
-
-#     end_time = time.time()
-#     print("Estimated FPS: %.2f" % (num_images / (end_time - start_time)))
-#     camera.EndAcquisition()
-#     return True

@@ -24,7 +24,7 @@ from record_multi_cam_params import (
 )
 import cv2
 import numpy as np
-from record_single_cam import record_overhead
+from record_single_cam import record_cam_sw, display_frame_from_queues
 
 ############################################
 ### Global variables used across threads ###
@@ -76,6 +76,9 @@ def find_cameras():
         # Reset camera
         cam.Init()
         cam.DeviceReset()
+
+        # Print output
+        print("Resetting cam: " + cam.TLDevice.DeviceSerialNumber.GetValue())
         del cam
 
     # Wait until cameras are reconnected
@@ -578,8 +581,20 @@ def print_previous_batch_size(cam_names):
             and (batch_dir_path.exists())
         ):
 
-            # Give time for mp4 to be written fully
-            time.sleep(0.25)
+            # Wait until mp4 sizes are constant (indicating that the mp4s are done saving)
+            mp4_sizes_old = [0 for _ in cam_names]
+            mp4_sizes_new = mp4_sizes_old
+            wait_time = 10
+            DEADLINE = time.time() + wait_time
+            while time.time() < DEADLINE:
+                for idx, cam_name in enumerate(cam_names):
+                    mp4_path = Path(batch_dir_path, cam_name + ".mp4")
+                    mp4_sizes_new[idx] = mp4_path.stat().st_size
+
+                if (mp4_sizes_new == mp4_sizes_old) and (np.array(mp4_sizes_new) != 0).all():
+                    break
+            else:
+                print(f"Error: mp4 sizes are not constant after {wait_time} seconds.")
 
             # Construct output message listing the number of images saved for each camera.
             output = "\n"
@@ -700,7 +715,7 @@ def display_images_in_queues(image_queues_display):
 #####################
 
 
-def record_high_bandwidth_video(cam_list, system):
+def record_high_bandwidth_video(cam_list, list_of_queue_lists):
     """
     Records images from multiple cameras.
 
@@ -719,12 +734,10 @@ def record_high_bandwidth_video(cam_list, system):
         # Create lists for acquisition threads, saving threads, and image queues
         acquisition_threads = []
         saving_threads = []
-        image_queues_saving = []
-        image_queues_display = []
 
         cam_names = []
 
-        for cam in cam_list:
+        for idx, cam in enumerate(cam_list):
 
             # Get camera name
             serial = cam.TLDevice.DeviceSerialNumber.GetValue()
@@ -734,10 +747,6 @@ def record_high_bandwidth_video(cam_list, system):
                 cam_names.append(CAMERA_NAMES_DICT_MONO[serial])
             else:
                 print("WARNING: Camera serial number not in CAMERA_NAMES_DICT_COLOR or CAMERA_NAMES_DICT_MONO.")
-
-            # Add a new image_queue
-            image_queues_saving.append(queue.Queue())  # Save and display
-            image_queues_display.append(queue.Queue())
 
             # # Create multiple saving threads for each camera, targeting the most recent image_queue
             # for _ in range(NUM_THREADS_PER_CAM):
@@ -750,27 +759,25 @@ def record_high_bandwidth_video(cam_list, system):
 
             # Create single saving thread for each camera as mp4
             saving_thread = threading.Thread(
-                target=save_mp4, args=(cam.DeviceUserID(), image_queues_saving[-1], SAVE_LOCATION)
+                target=save_mp4, args=(cam.DeviceUserID(), list_of_queue_lists[idx][0], SAVE_LOCATION)
             )
             saving_thread.start()
             saving_threads.append(saving_thread)
 
             # Create an acquisition thread for each camera, which places images into the most recent image_queue
-            acquisition_thread = threading.Thread(
-                target=acquire_images, args=(cam, [image_queues_saving[-1], image_queues_display[-1]])
-            )
+            acquisition_thread = threading.Thread(target=acquire_images, args=(cam, list_of_queue_lists[idx]))
             # acquisition_thread = threading.Thread(target=acquire_images, args=(cam, [image_queues_saving[-1]]))
             acquisition_thread.start()
             acquisition_threads.append(acquisition_thread)
 
-        # Create display thread
-        display_thread = threading.Thread(target=display_images_in_queues, args=(image_queues_display,))
-        display_thread.start()
+        # # Create display thread
+        # display_thread = threading.Thread(target=display_images_in_queues, args=(image_queues_display,))
+        # display_thread.start()
 
-        # Create the queue counter, which prints the size of each image queue
-        time.sleep(0.5)
-        queue_counter_thread = threading.Thread(target=queue_counter, args=([image_queues_saving]))
-        queue_counter_thread.start()
+        # # Create the queue counter, which prints the size of each image queue
+        # time.sleep(0.5)
+        # queue_counter_thread = threading.Thread(target=queue_counter, args=([image_queues_saving]))
+        # queue_counter_thread.start()
 
         # Create the print_previous_batch_size thread, which prints the number of saved images in each batch
         print_previous_batch_size_thread = threading.Thread(target=print_previous_batch_size, args=(cam_names,))
@@ -802,9 +809,10 @@ def record_high_bandwidth_video(cam_list, system):
         # release_cameras(cam_list, system)
 
         # Pass None to image queues to signal the end of saving
-        for q in image_queues_saving:
-            for _ in range(NUM_THREADS_PER_CAM):
-                q.put((None, None, None))
+        for queue_list in list_of_queue_lists:
+            for q in queue_list:
+                for _ in range(NUM_THREADS_PER_CAM):
+                    q.put((None, None, None))
 
         # This block prevents ctrl+c from closing the program before images have finished saving.
         while SAVING_DONE_FLAG is False:
@@ -814,7 +822,7 @@ def record_high_bandwidth_video(cam_list, system):
 
                 # Mark saving as done, end the queue_counter
                 SAVING_DONE_FLAG = True
-                queue_counter_thread.join()
+                # queue_counter_thread.join()
                 print_previous_batch_size_thread.join()
 
             except KeyboardInterrupt:
@@ -825,7 +833,7 @@ def record_high_bandwidth_video(cam_list, system):
         print("Finished saving images.")
         print(" " * 80)
 
-        display_thread.join()
+        # display_thread.join()
 
     except PySpin.SpinnakerException as ex:
         print("Error: %s" % ex)
@@ -862,6 +870,7 @@ def split_cameras_into_overhead_and_high_speed(cam_list):
     using_cam_overhead = False
     if len(CAMERA_OVERHEAD_LIST) == 0:
         using_cam_overhead = False
+        cam_overhead_serial = None
         print("Not using overhead camera")
     elif len(CAMERA_OVERHEAD_LIST) == 1:
         using_cam_overhead = True
@@ -873,6 +882,8 @@ def split_cameras_into_overhead_and_high_speed(cam_list):
     # Split cameras into high_speed and overhead
     if using_cam_overhead:
         cam_overhead = cam_list.GetBySerial(cam_overhead_serial)
+    else:
+        cam_overhead = None
 
     cam_high_speed_list = []
     for c in cam_list:
@@ -902,21 +913,40 @@ if __name__ == "__main__":
         result = set_camera_params(cam_high_speed_list)
 
         # Initialize overhead camera
+        overhead_fps = 30.0
         if using_cam_overhead:
-            queue_A = queue.Queue()
-            queue_B = queue.Queue()
+            sw_queue_list = [queue.Queue(), queue.Queue()]  # First queue is for saving, second is for display
             stop_event = threading.Event()
-            record_thread = threading.Thread(target=record_overhead, args=(cam_overhead, queue_A, queue_B, stop_event))
+            record_thread = threading.Thread(
+                target=record_cam_sw, args=(cam_overhead, sw_queue_list, stop_event, overhead_fps, "overhead")
+            )
             record_thread.start()
 
         # Acquire and save images using multiple threads; loops until ctrl+c
-        record_high_bandwidth_video(cam_high_speed_list, system)
+        list_of_queue_lists = [[queue.Queue(), queue.Queue()] for _ in range(len(cam_high_speed_list))]
+        cam_display_hw = [q_list[1] for q_list in list_of_queue_lists]
+
+        if using_cam_overhead:
+            cam_display_sw = [sw_queue_list[1]]
+            all_display_queues = [cam_display_hw, cam_display_sw]
+            all_display_names = ["cam_display_hw", "cam_display_sw"]
+        else:
+            all_display_queues = [cam_display_hw]
+            all_display_names = ["cam_display_hw"]
+
+        display_thread = threading.Thread(
+            target=display_frame_from_queues,
+            args=(all_display_queues, all_display_names),
+        )
+        display_thread.start()
+
+        record_high_bandwidth_video(cam_high_speed_list, list_of_queue_lists)
 
         # Stop overhead thread
         if using_cam_overhead:
             stop_event.set()
-            queue_A.put(None)
-            queue_B.put(None)
+            for q in sw_queue_list:
+                q.put((None, None, None))
             cv2.destroyAllWindows()
             record_thread.join()
 
