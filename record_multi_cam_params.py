@@ -28,7 +28,7 @@ CAMERA_NAMES_DICT_COLOR = {
 
 CAMERA_NAMES_DICT_MONO = {
     # "23398259": "camTL-orig",
-    "23398260": "camBL-orig",
+    # "23398260": "camBL-orig",
     # "23398261": "camBR-orig",
     # "23428985": "camTo-orig",
     # "24048476": "camTR-orig",
@@ -37,7 +37,7 @@ CAMERA_NAMES_DICT_MONO = {
 # Camera for software-triggered, webcam-type view
 CAMERA_OVERHEAD_LIST = [
     # "19472072",
-    # "23398259",
+    "23398259",
 ]
 
 # According to the API, trigger mode needs to be turned off for other parameters (like TriggerSource) to be changed. For this reason, the order of the items in this list matters. After setting the parameters, TriggerMode is turned back to True.

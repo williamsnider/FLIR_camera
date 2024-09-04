@@ -803,7 +803,11 @@ def record_high_bandwidth_video(cam_list, list_of_queue_lists):
             at.join()
         print(" " * 80)
         print("Finished acquiring images...")
-        del cam  # Release the reference to the camera. Important according to FLIR docs.
+        try:
+
+            del cam  # Release the reference to the camera. Important according to FLIR docs.
+        except:
+            pass
 
         # # Cleanly stop and release cameras
         # release_cameras(cam_list, system)

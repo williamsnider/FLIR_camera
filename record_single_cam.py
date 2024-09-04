@@ -111,6 +111,10 @@ def display_frame_from_queues(list_of_queue_lists, window_names_list):
         for window_idx, queue_list in enumerate(list_of_queue_lists):
             window_name = window_names_list[window_idx]
 
+            # Skip if no queues
+            if len(queue_list) == 0:
+                continue
+
             # Collect frames from queues
             for queue_idx, queue in enumerate(queue_list):
 
