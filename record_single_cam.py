@@ -135,20 +135,30 @@ def display_frame_from_queues(list_of_queue_lists, window_names_list):
                     except:
                         break
 
-            # Stack into one image, converting to two rows if necessary
-            img_height, img_width, _ = list_of_last_frame_lists[window_idx][0].shape
+            # Stack into one image, converting to two rows if necessary. Handle different size images if needed
+            img_height_max = 0
+            img_width_max = 0
+            for frame in list_of_last_frame_lists[window_idx]:
+                img_height_max = max(img_height_max, frame.shape[0])
+                img_width_max = max(img_width_max, frame.shape[1])
 
             num_queues = len(queue_list)
             MAX_COLS = 3
             num_cols = min(num_queues, MAX_COLS)
             num_rows = np.ceil(num_queues / MAX_COLS).astype(int)
 
-            stacked_frame = np.zeros((img_height * num_rows, img_width * num_cols, 3), dtype=np.uint8)
+            stacked_frame = np.zeros((img_height_max * num_rows, img_width_max * num_cols, 3), dtype=np.uint8)
             for idx, frame in enumerate(list_of_last_frame_lists[window_idx]):
-                stacked_frame[
-                    img_height * (idx // MAX_COLS) : img_height * ((idx // MAX_COLS) + 1),
-                    img_width * (idx % MAX_COLS) : img_width * ((idx % MAX_COLS) + 1),
-                ] = frame
+                frame_height, frame_width, _ = frame.shape
+                row_start = img_height_max * (idx // MAX_COLS)
+                row_end = row_start + frame_height
+                col_start = img_width_max * (idx % MAX_COLS)
+                col_end = col_start + frame_width
+                stacked_frame[row_start:row_end, col_start:col_end] = frame
+                # stacked_frame[
+                #     img_height * (idx // MAX_COLS) : img_height * ((idx // MAX_COLS) + 1),
+                #     img_width * (idx % MAX_COLS) : img_width * ((idx % MAX_COLS) + 1),
+                # ] = frame
 
             cv2.imshow(window_name, stacked_frame)
 
@@ -240,6 +250,8 @@ def record_cam_sw(cam, queue_list, stop_event, fps, cam_name):
         cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         cam.AcquisitionFrameRateEnable.SetValue(True)
         cam.AcquisitionFrameRate.SetValue(fps)
+        cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+        cam.ExposureTime.SetValue(30000)  # us
 
     except PySpin.SpinnakerException as ex:
         print("Error: %s" % ex)

@@ -101,6 +101,7 @@ if __name__ == "__main__":
     CQ = 30
 
     YYYY_MM_DD = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d")
+    # YYYY_MM_DD = "2024-09-05"
     SAVE_LOCATION = "/mnt/Data4TB"
 
     TRIALS_DIR = Path(SAVE_LOCATION, YYYY_MM_DD, "cameras")
